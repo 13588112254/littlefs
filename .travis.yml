@@ -126,6 +126,7 @@ jobs:
         - mkdir mount/littlefs
         - cp -r $(git ls-tree --name-only HEAD) mount/littlefs
         - cd mount/littlefs
+        - stat .
         - ls -flh
         - make -B test_dirs test_files QUIET=1
 
