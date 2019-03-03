@@ -1,6 +1,6 @@
-## The little filesystem
+## littlefs
 
-A little fail-safe filesystem designed for embedded systems.
+A little fail-safe filesystem designed for microcontrollers.
 
 ```
    | | |     .---._____
@@ -11,17 +11,20 @@ A little fail-safe filesystem designed for embedded systems.
    | | |
 ```
 
-**Bounded RAM/ROM** - The littlefs is designed to work with a limited amount
-of memory. Recursion is avoided and dynamic memory is limited to configurable
-buffers that can be provided statically.
+**Power-loss resilience** - littlefs is designed to handle random power
+failures. All file operations have strong copy-on-write guarantees and if
+power is lost the filesystem will fall back to the last known good state.
 
-**Power-loss resilient** - The littlefs is designed for systems that may have
-random power failures. The littlefs has strong copy-on-write guarantees and
-storage on disk is always kept in a valid state.
+**Dynamic wear leveling** - littlefs is designed with flash in mind, and
+provides wear leveling over dynamic blocks. Additionally, littlefs can
+detect bad blocks and work around them.
 
-**Wear leveling** - Since the most common form of embedded storage is erodible
-flash memories, littlefs provides a form of dynamic wear leveling for systems
-that can not fit a full flash translation layer.
+**Bounded RAM/ROM** - littlefs is designed to work with a small amount of
+memory. RAM usage is strictly bounded, which means RAM consumption does not
+change as the filesystem grows. The filesystem contains no unbounded
+recursion and dynamic memory is limited to configurable buffers that can be
+provided statically.
+
 
 ## Example
 
@@ -91,11 +94,11 @@ int main(void) {
 Detailed documentation (or at least as much detail as is currently available)
 can be found in the comments in [lfs.h](lfs.h).
 
-As you may have noticed, littlefs takes in a configuration structure that
-defines how the filesystem operates. The configuration struct provides the
-filesystem with the block device operations and dimensions, tweakable
-parameters that tradeoff memory usage for performance, and optional
-static buffers if the user wants to avoid dynamic memory.
+littlefs takes in a configuration structure that defines how the filesystem
+operates. The configuration struct provides the filesystem with the block
+device operations and dimensions, tweakable parameters that tradeoff memory
+usage for performance, and optional static buffers if the user wants to avoid
+dynamic memory.
 
 The state of the littlefs is stored in the `lfs_t` type which is left up
 to the user to allocate, allowing multiple filesystems to be in use
@@ -107,8 +110,8 @@ directory functions, with the deviation that the allocation of filesystem
 structures must be provided by the user.
 
 All POSIX operations, such as remove and rename, are atomic, even in event
-of power-loss. Additionally, no file updates are actually committed to the
-filesystem until sync or close is called on the file.
+of power-loss. Additionally, no file updates are not actually committed to
+the filesystem until sync or close is called on the file.
 
 ## Other notes
 
@@ -164,7 +167,7 @@ License Identifiers that are here available: http://spdx.org/licenses/
 
 [Mbed OS](https://github.com/ARMmbed/mbed-os/tree/master/features/filesystem/littlefs) -
 The easiest way to get started with littlefs is to jump into [Mbed](https://os.mbed.com/),
-which already has block device drivers for most forms of embedded storage. The
+which already has block device drivers for most forms of embedded storage.
 littlefs is available in Mbed OS as the [LittleFileSystem](https://os.mbed.com/docs/latest/reference/littlefilesystem.html)
 class.
 

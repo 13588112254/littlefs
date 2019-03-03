@@ -1,9 +1,9 @@
-## The little filesystem technical specification
+## littlefs technical specification
 
 This is the technical specification of the little filesystem. This document
 covers the technical details of how the littlefs is stored on disk for
-introspection and tool development. This document assumes you are familiar
-with the design of the littlefs, for more info on how littlefs works check
+introspection and tooling. This document assumes you are familiar with the
+design of the littlefs, for more info on how littlefs works check
 out [DESIGN.md](DESIGN.md).
 
 ```
@@ -18,22 +18,21 @@ out [DESIGN.md](DESIGN.md).
 ## Some quick notes
 
 - littlefs is a block-based filesystem. The disk is divided into an array of
-  evenly sized blocks that are used as the logical unit of storage. Block
-  pointers are stored in 32 bits.
+  evenly sized blocks that are used as the logical unit of storage.
+
+- Block pointers are stored in 32 bits, with the special value `0xffffffff`
+  representing a null block address.
 
 - In addition to the logical block size (which usually matches the erase
   block size), littlefs also uses a program block size and read block size.
-  These determine the alignment of block device operations, but aren't needed
-  for portability.
+  These determine the alignment of block device operations, but don't need
+  to be consistent for portability.
 
-- By default, any values in littlefs are stored in little-endian byte order.
-
-- The littlefs uses the value of `0xffffffff` to represent a null
-  block address.
+- By default, all values in littlefs are stored in little-endian byte order.
 
 ## Directories / Metadata pairs
 
-Metadata pairs form the backbone of the littlefs and provide a system for
+Metadata pairs form the backbone of littlefs and provide a system for
 distributed atomic updates. Even the superblock is stored in a metadata pair.
 
 As their name suggests, a metadata pair is stored in two blocks, with one block

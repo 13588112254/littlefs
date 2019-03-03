@@ -1,6 +1,6 @@
-## The design of the little filesystem
+## The design of littlefs
 
-A little fail-safe filesystem designed for embedded systems.
+A little fail-safe filesystem designed for microcontrollers.
 
 ```
    | | |     .---._____
@@ -10,6 +10,61 @@ A little fail-safe filesystem designed for embedded systems.
   '-----'   '----------'
    | | |
 ```
+
+littlefs was originally built as an experiment to learn about filesystem design
+in the context of microcontrollers. Specifically, How would you build a
+filesystem that is resilient to power-loss and flash wear without using
+unbounded memory?
+
+**TODO add some segway?**
+
+## The problem
+
+The embedded systems littlefs targets are usually 32-bit microcontrollers with
+around 32KiB of RAM and 512KiB of ROM. These are often paired with SPI NOR
+flash chips with about 4MiB of flash storage. These devices are too small for
+Linux and most filesystems, requiring code written specifically with size in
+mind.
+
+Flash itself is an interesting piece of technology with its own quirks and
+nuance. Unlike other forms of storage, writing to flash requires two
+operations: erasing and programming. Programming (setting bits to 0) is
+relatively cheap and can be very granular. Erasing however (setting bits to 1),
+requires an expensive and destructive operation that gives flash its name.
+[Wikipedia](https://en.wikipedia.org/wiki/Flash_memory) has more information
+about this if you are interested in how flash works.
+
+To make things more annoying, it's common for these embedded systems to lose
+power at any time. Usually, microcontroller code is simple and reactive, with
+no concept of a shutdown routine. This presents a big challenge for persistent
+storage, where an unlucky power loss can corrupt the storage and leave a device
+unrecoverable.
+
+This leaves us with three major requirements for an embedded filesystem.
+
+1. **Power-loss resilience** - On these systems, power can be lost at any time.
+   If a power loss corrupts any persistent data structures, this can cause the
+   device to become unrecoverable. An embedded filesystem must be designed to
+   recover from a power loss during any write operation.
+
+1. **Wear leveling** - Writing to flash is destructive. If a filesystem
+   repeatedly writes to the same block, eventually that block will wear out.
+   Filesystems that don't take wear into account can easily burn through blocks
+   used to store frequently updated metadata and cause a device's early death.
+
+1. **Bounded RAM/ROM** - If the above requirements weren't enough, these
+   systems also have very limited amounts of memory. This prevents many
+   existing filesystem designs, which can lean on relatively large amounts of
+   RAM to temporarily store filesystem metadata.
+
+   For ROM, this means we need to keep our design simple and reuse code paths
+   were possible. For RAM we have a stronger requirement, all RAM usage is
+   bounded. This means RAM usage does not grow as the filesystem changes in
+   size or number of files. This creates a unique challenge as even presumably
+   simple operations, such as traversing the filesystem, become surprisingly
+   difficult.
+
+**---------- below is old ---------**
 
 For a bit of backstory, the littlefs was developed with the goal of learning
 more about filesystem design by tackling the relative unsolved problem of
@@ -105,6 +160,454 @@ filesystem. COW filesystems can easily recover from corrupted blocks and have
 natural protection against power loss. However, if they are not designed with
 wear in mind, a COW filesystem could unintentionally wear down the root block
 where the COW data structures are synchronized.
+
+**-- new below --**
+
+## Existing designs?
+
+So what's out there? There are, of course, many different filesystems, however
+they often share and borrow feature from each other. If we only look at
+power-loss resilience and wear leveling, we can narrow these down to only a
+handful of designs.
+
+<!-- pic here? -->
+
+1. First we have the non-resilient block based filesystems, such as FAT and
+   ext2. These are the the earliest filesystem designs and often the most
+   simple. Here storage is divided into blocks, with each file being stored
+   in a collection of blocks.  Without modifications, these filesystems are
+   not power-loss resilient, so updating a file is a simple as rewriting the
+   blcoks in place.
+
+   Because of their simplicity, these filesystems are usually both the fastest
+   and smallest. However the lack of power resilience is, of course, bad, and
+   the binding relationship of storage location and data removes the
+   filesystem's ability to manage wear.
+
+<!-- pic here? -->
+
+2. In a completely different direction, we have logging filesystems, such as
+   JFFS, YAFFS, and SPIFFS. In a logging filesystem, storage location is not
+   bound to a piece of data, instead the entire storage is used for a circular
+   log which is appended with every change made to the filesystem. Writing
+   appends new changes, while reading requires traversing the log to
+   reconstruct a file. Some logging filesystems cache files to avoid the read
+   cost, but this comes at a tradeoff of RAM.
+
+   Logging filesystem are beautifully elegant. With a checksum, we can easily
+   detect power-loss and fall back to the previous state by ignoring failed
+   appends. And if that wasn't good enough, their cyclic nature means that
+   logging filesystems distribute wear across storage perfectly.
+
+   The main downside is performance. If we look at garbage collection, the
+   process of cleaning up outdated data from the end of the log, I've yet to
+   see a pure logging filesystem that does not have one of these two costs:
+
+   1. O(n^2) runtime
+   2. O(n) RAM
+
+   SPIFFS is a very interesting case here, as it uses the fact that repeated
+   programs to NOR flash is both atomic and masking. This is a very neat
+   solution, however it limits the type of storage you can support.
+
+<!-- pic here? -->
+
+3. Perhaps the most common type of filesystem, a journaling filesystem, such
+   as ext4 and NTFS, is what happens when you try to mate a block based
+   filesystem with a logging filesystem. Here, we take a normal block based
+   filesystem and add a bounded log where we note every change before it
+   occurs.
+
+   This sort of filesystem takes the best from both worlds. Performance can be
+   as fast as a block based filesystem (though updating the journal does slow
+   it down a bit), and atomic updates to the journal allow the filesystem to
+   recover in the event of a power loss.
+
+   Unfortunately, journaling filesystems have two problems. They are fairly
+   complex, since there are effectively two filesystems running in parallel,
+   which comes with a code size cost. They also offer no protection against
+   wear because of the strong relationship between storage location and data.
+
+<!-- pic here? -->
+
+4. Last but not least we have copy-on-write (COW) filesystems, such as btrfs
+   and ZFS. These are very similar to other block based filesystems, but
+   instead of updating block inplace, all updates are performed by creating
+   a copy and then updating the reference to the block. This effectively
+   pushes all of our problems upwards until we reach the root of our
+   filesystem, which is often stored in a very small log.
+
+   COW filesystems are very enticing. They offer very similar performance to
+   block based filesystems while managing to pull off atomic updates without
+   storing data changes directly in a log. They even disassociate the storage
+   location of data, which creates the opportunity for wear leveling.
+
+   Well, almost. The unbounded upwards movement of updates causes some
+   problems. Because updates to a COW filesystem don't stop until they've
+   reached the root, an update can cascade into a larger set of writes than
+   the original data. On top of this, the upward motion focuses these writes
+   into the block, which can wear out much earlier than the rest of our
+   filesystem.
+
+## littlefs
+
+So what does littlefs do?
+
+If we look at existing filesystems, there are two specific design patterns that
+stand out, but each have their own set of problems. Logging, which provides
+independent atomicity, has poor runtime performance, and COW structures, which
+perform well, push the atomicity problem upwards.
+
+Can we work around these limitations?
+
+Consider logging. It has either a O(n^2) runtime or O(n) RAM cost. We can't
+avoid these costs, _but_ if we put an upper bound on the size we can at least
+prevent the theoretical cost from becoming problem. This is sort of like the
+old computer science trick where you can reduce any algorithmic complexity to
+O(1) by simply bounding the input.
+
+In the case of COW structures, we can try twisting the definition a bit. Lets
+say that our COW structure doesn't copy after a single write, but instead
+copies after n writes. This doesn't change most COW properties (assuming you
+can write atomically!), but what it does do is prevents the upward motion of
+wear. This sort of copy-on-bounded-writes (COBW) still focuses wear, but at
+each level we divide the propogation of wear by n. With a sufficiently
+large n wear propogation is no longer a problem.
+
+Do you see where this is going? Seperate, logging and COW are imperfect
+solutions and have weaknesses that limit their usefulness. But if we merge
+the two they can mutually solve each other's limitations.
+
+This is the idea behind littlefs. At the sub-block level, littlefs is built
+out of small, two blocks logs that provide atomic updates to metadata anywhere
+on the filesystem. At the super-block level, littlefs is a COW tree of blocks
+that can be evicted on demand.
+
+<!-- pic here? -->
+
+There are still some minor issues. Small logs can be expensive in terms of
+storage, in the worst case a small log costs 4x the size of the original data.
+COBW structures require an efficient block allocator since allocation occurs
+every n writes. And there is still the challenge of keeping the RAM usuage
+constant.
+
+**- scratch below -**
+
+
+
+
+
+
+
+
+COW updates still focus wear as it moves upwards, but at each level the wear is
+divided by n. With a sufficiently large n we can completely remove the focus of
+wear.
+
+
+
+
+
+
+but we can use an old computer science trick where putting
+an upper bound on our input reduces the complexity to O(1).
+
+
+ If n is a constant
+
+
+
+We can actually work around some of these limitations. 
+
+
+
+
+We can actually improve log performance with a sort of computer science hack. 
+
+
+
+
+
+At a high level, littlefs attempts to merge these into two layers ordered by
+scale.
+
+
+ by considering the filesystem
+to be split into two orders of scale.
+
+
+storage to be
+split 
+
+
+ by splitting the filesystem into two layers
+of scale
+
+littlefs tries to attack the problem by splitting it
+into two different orders of scale.
+
+**- TODO move this to readme? -**
+## High level
+
+At a high level, littlefs is a block based filesystem that uses small logs to
+store metadata and larger copy-on-write (COW) structures to store file data.
+
+In littlefs, these ingredients form a sort of two-layered cake, with the small
+logs (called metadata pairs) providing fast updates to metadata anywhere on
+storage, while the COW structures store file data compactly and without any
+wear amplification cost.
+
+Both of these data structures are built out of blocks, which are fed by a
+common block allocator. By limiting the number of erases allowed on a block
+per allocation, the allocator provides dynamic wear leveling over the entire
+filesystem.
+
+```
+            .--------.                                      \
+            |root dir|-.                                    |
+            | pair 0 | |                                    |     
+   .--------|        |-'                                    |
+   |        '--------'                                      |
+   |        .-'    '-------------------------.              |
+   |       v                                  v             +- metadata
+   |  .--------.        .--------.        .--------.        |
+   '->| dir A  |------->| dir A  |------->| dir B  |        |
+      | pair 0 |        | pair 1 |        | pair 0 |        |
+      |        |        |        |        |        |        |
+      '--------'        '--------'        '--------'        |
+      .-'    '-.            |             .-'    '-.        /
+     v          v           v            v          v
+.--------.  .--------.  .--------.  .--------.  .--------.  \
+| file C |  | file D |  | file E |  | file F |  | file G |  |
+| blck 0 |  | blck 0 |  | blck 0 |  | blck 0 |  | blck 0 |  |
+|        |  |        |  |        |  |        |  |        |  |
+'--------'  '--------'  '--------'  '--------'  '--------'  |
+    |                      | |          |                   |
+    v                      v |          v                   |
+.--------.              .--------.  .--------.              |
+| file C |              | file E |  | file F |              |
+| blck 0 |              | blck 0 |  | blck 0 |              +- file data
+|        |              |        |  |        |              |
+'--------'              '--------'  '--------'              |
+                           | |                              |
+                           v v                              |
+                        .--------.                          |
+                        | file E |                          |
+                        | blck 0 |                          |
+                        |        |                          |
+                        '--------'                          /
+     
+    ^                                               |       \
+    | block allocator                               v       |
+.--------.  .--------.  .--------.  .--------.  .--------.  |
+|        |  |        |  |        |  |        |  |        |  +- free blocks
+|        |<-|        |<-|        |<-|        |<-|        |  |
+|        |  |        |  |        |  |        |  |        |  |
+'--------'  '--------'  '--------'  '--------'  '--------'  /
+```
+
+The key to making littlefs efficient is the implementation of these components.
+
+
+**- TODO move this to readme? -**
+
+
+
+**-- scratch below --**
+
+Fortunately for us, data locality has very little
+impact on flash, so all blocks are treated equal
+
+
+
+
+
+
+
+
+
+This limits the cost of garbage collection while creating a balance
+between the upward cost of COW operations and the distribution of write
+operations.
+
+
+
+If we look at littlefs as a whole, these ingredients form a sort of two-layered
+cake, with 
+
+```
+```
+
+
+
+**-- new below? --**
+
+## Metadata pairs
+
+Metadata pairs are the backbone of littlefs. These are small, two block logs
+that allow atomic updates anywhere in the filesystem.
+
+Why two blocks? Well, logs work by appending entries to a circular buffer
+stored on disk. But remember that flash has limited write granularity. We can
+incrementally program new data onto erased blocks, but we need to erase a full
+block at a time. This means that in order for our circular buffer to work, we
+need more than one block.
+
+We could make our logs larger than two blocks, but the next challenge is how
+do we store references to these logs. Because the blocks themselves are erased
+during operation, using a data structure to track these blocks is complicated.
+The simple solution here is to store a two block addresses for every metadata
+pair. This has the added advantage that we can change out blocks in the
+metadata pair independently, and we don't reduce our block granularity for
+other operations.
+
+In order to determine which metadata block is the most recent, we store a
+revision count that we compare using sequence arithmetic (very handy for
+avoiding problems with integer overflow). Conventiently, this revision count
+also gives us a rough idea of how many erases have occured on the block.
+
+--- <!-- picture of metadata pair tree? -->
+
+So how do atomically update our metadata pairs? Atomicity (a type of power-loss
+resilience) requires two parts, redundancy and error detection.  Error
+detection can be provided with a checksum, in littlefs's case we use a 32-bit
+CRC. Maintaining redundancy, on the other hand, requires multiple stages.
+
+1. If our block is not full and the program size is small enough to let us
+   append more entries, we can simply append the entries to the log. Because
+   we don't overwrite the original entries (remember rewriting flash requires
+   an erase), we still have the original entries if we lose power during the
+   append.
+   
+   Note that littlefs doesn't maintain a checksum for each entry. Many logging
+   filesystems do this, but it limits what you can update in a single atomic
+   operation. What we can do instead is group multiple entries into a commit
+   that shares a single checksum. This lets us update multiple unrelated pieces
+   of metadata as long as they reside on the same metadata pair.
+
+2. If our block _is_ full of entries, we need to somehow remove outdated
+   entries to make space for new ones. This process is called garbage
+   collection, but because littlefs has multiple garbage collectors we refer
+   to it as compaction when talking about metadata pairs.
+
+   Compared to other filesystems, littlefs's garbage collector is relatively
+   simple. We want to avoid RAM consumption, so we use a sort of brute force
+   solution. For each entry we check to see if a newer entry has been written,
+   if the entry is the most recent we append it to our new block. This is where
+   having two blocks becomes important, if we lose power we still have
+   everything in our original block.
+
+   This compaction step is also when we erase the metadata block and increment
+   the revision count. Because we can commit multiple entries at once, we can
+   write all of these changes to the second block without worrying about power
+   loss. It's only when the commit's CRC is written that the entries and
+   revision count become committed and readable.
+
+
+3. If our block size is full of entries _and_ we can't find any garbage, then
+   what?
+
+
+
+ to
+   clean, then what?
+3.
+
+    
+
+   Note that this is also when we erase our increment our revision count
+   
+   
+
+
+
+
+ the extra block in our metadata pair. This is where
+   having two blocks becomes important because if we lose power we still have
+   the data in our original block. To determine which block is the most 
+
+
+littlefs's garbage
+   collector is relatively simple. Because 
+   
+
+
+but since littlefs has multiple garbage collectors we call
+   this compaction.
+
+
+  is called garbage collection
+ 
+
+
+
+ we need to collect any outdated entries. 
+   perform garbage collection in what littlefs calls
+   the "compact" step. Here we use a RAM conservative approach where we check
+   that each entry is the most recent in the metadata pair, if it is we write
+   it to our new block. 
+
+
+iterate
+over each entry for each entry 
+
+
+Many logs use a checksum for each entry, but this means that each entry is
+its own synchronization point if power is lost. In littlefs's case 
+
+So what is stored in metadata pairs?
+
+
+
+**-- scratch below --**
+
+
+
+are a circular buffer of updates
+
+
+ work by appending entries to a circular buffer
+stored in disk. But remember that flash is limited to performing block sized
+erases. We can incrementally program new data, but in order to write over old
+data we need to erase that block at some point. This means that in order for
+logs to function, we need to 
+
+
+ Well, the way logs work is that we append entries to the log
+until the log is full. But once the log is full we can't just become
+unresponsive, we need to clean up outdated entries. This process is called
+garbage collection. We can do this by iterating through the oldest entries and
+move any entries that are still valid to the end of the log.
+
+
+## Metadata pairs
+
+So, 
+
+
+
+Metadata pairs form the backbone of littlefs and provide a system for
+distributed atomic updates. A metadata pair is a small, two block log that can
+be updated atomically.
+
+
+
+
+
+
+
+
+Metadata pairs provide the backbone for littlefs. These are small, two block
+logs that can be updated atomically.
+
+
+
+
+The backbone of littlefs 
+
+The cornerstone of littlefs are the metadata pairs 
+
+**-- old below --**
 
 ## Metadata pairs
 
