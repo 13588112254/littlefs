@@ -454,8 +454,8 @@ block at a time. This means that in order for our circular buffer to work, we
 need more than one block.
 
 We could make our logs larger than two blocks, but the next challenge is how
-do we store references to these logs. Because the blocks themselves are erased
-during operation, using a data structure to track these blocks is complicated.
+do we store references to these logs? Because the blocks themselves are erased
+during writes, using a data structure to track these blocks is complicated.
 The simple solution here is to store a two block addresses for every metadata
 pair. This has the added advantage that we can change out blocks in the
 metadata pair independently, and we don't reduce our block granularity for
@@ -468,16 +468,19 @@ also gives us a rough idea of how many erases have occured on the block.
 
 --- <!-- picture of metadata pair tree? -->
 
-So how do atomically update our metadata pairs? Atomicity (a type of power-loss
-resilience) requires two parts, redundancy and error detection.  Error
-detection can be provided with a checksum, in littlefs's case we use a 32-bit
-CRC. Maintaining redundancy, on the other hand, requires multiple stages.
+So how do atomically update our metadata pairs? Atomicity (a type of
+power-loss resilience) requires two parts, redundancy and error detection.
+Error detection can be provided with a checksum, in littlefs's case we use a
+32-bit CRC. Maintaining redundancy, on the other hand, requires multiple
+stages.
 
 1. If our block is not full and the program size is small enough to let us
    append more entries, we can simply append the entries to the log. Because
    we don't overwrite the original entries (remember rewriting flash requires
    an erase), we still have the original entries if we lose power during the
    append.
+
+   <!-- pic -->
    
    Note that littlefs doesn't maintain a checksum for each entry. Many logging
    filesystems do this, but it limits what you can update in a single atomic
@@ -485,27 +488,137 @@ CRC. Maintaining redundancy, on the other hand, requires multiple stages.
    that shares a single checksum. This lets us update multiple unrelated pieces
    of metadata as long as they reside on the same metadata pair.
 
+   <!-- pic -->
+
 2. If our block _is_ full of entries, we need to somehow remove outdated
    entries to make space for new ones. This process is called garbage
-   collection, but because littlefs has multiple garbage collectors we refer
-   to it as compaction when talking about metadata pairs.
+   collection, but because littlefs has multiple garbage collectors, we
+   also call this specific case compaction.
 
    Compared to other filesystems, littlefs's garbage collector is relatively
    simple. We want to avoid RAM consumption, so we use a sort of brute force
-   solution. For each entry we check to see if a newer entry has been written,
-   if the entry is the most recent we append it to our new block. This is where
-   having two blocks becomes important, if we lose power we still have
+   solution where for each entry we check to see if a newer entry has been
+   written. If the entry is the most recent we append it to our new block. This
+   is where having two blocks becomes important, if we lose power we still have
    everything in our original block.
 
-   This compaction step is also when we erase the metadata block and increment
+   During this compaction step we also erase the metadata block and increment
    the revision count. Because we can commit multiple entries at once, we can
    write all of these changes to the second block without worrying about power
-   loss. It's only when the commit's CRC is written that the entries and
-   revision count become committed and readable.
+   loss. It's only when the commit's CRC is written that the compacted entries
+   and revision count become committed and readable.
+
+   <!-- pic -->
+
+3. If our block is full of entries _and_ we can't find any garbage, then what?
+   At this point, most logging filesystems would return an error indicating no
+   more space is available, but because we have small logs, overflowing a log
+   isn't really an error condition.
+
+   Instead, we split our original metadata pair into two metadata pairs, each
+   containing half of the entries, connected by a tail pointer. Instead of
+   increasing the size of the log and dealing with the scalability issues
+   associated with larger logs, we form a linked list of small bounded logs.
+   This is a tradeoff as this approach does use more storage space, but at the
+   benefit of improved scalability.
+
+   <!-- pic -->
+
+There is another complexity the pops up when dealing with small logs. The
+amortized runtime cost of garbage collection is not only dependendent on its
+one time cost (O(n^2) for littlefs), but also depends on how often garbage
+collection occurs.
+
+Consider two extremes:
+
+1. Log is empty, garbage collection occurs once every n updates, amortized
+   complexity is O(n)/n = O(1) for every update.
+2. Log is full, garbage collection occurs every update, amortized
+   complexity is O(n^2)/1 = O(n^2) for every update.
+  
+Clearly we need to be more aggressive than waiting for our metadata pair to
+be full. As the metadata pair approaches fullness the frequency of compactions
+grows very rapidly.
+
+Looking at the problem more generically, consider a log with `x` bytes for each
+entry, `d` dynamic entries (entries that are outdated during garbage
+collection), and `s` static entries (entries that need to be copied during
+garbage collection). If we look at the amortized runtime complexity of updating
+this log we get this formula:
+
+<!-- TODO formulas -->
+
+cost = x + x (s / d+1)
+
+If we let `r` be the ratio of static space to the size of our log in bytes, we
+find an alternative representation of the number of static and dynamic entries:
+
+s = r (size/x)
+d = (1 - r) (size/x)
+
+Substituting these in for `d` and `s` gives us a nice formula for the cost
+of updating an entry given how full the log is:
+
+cost = x + x (r (size/x) / ( (1-r) (size/x) + 1 ) )
+
+Assuming 100 byte entries in a 1 MiB log, we can plot this:
+
+<!-- blablabla plot here -->
+
+So at 50% usage, we're seeing an average of 2x cost per update, and at 75%
+usage, we're already at an average of 4x cost per update.
+
+To avoid this exponential growth, instead of waiting for our metadata pair
+to be full, we split the metadata pair once we exceed 50% capacity. We do this
+lazily, waiting until we need to compact before checking if we fit in our 50%
+limit. This limits the overhead of garbage collection to 2x the runtime cost,
+giving us an amortized runtime complexity of O(1).
+
+--- <!-- TODO need this bar here? -->
+
+If we look at metadata pairs and linked-lists of metadata pairs at a high
+level, they are pretty nice in terms of runtime costs. Assuming n metadata
+pairs, each containing m metadata entries, the lookup cost for a specific
+entry has a worst case runtime complexity of O(nm). For updating a specific
+entry, the worst case complexity is O(nm^2), with an amortized complexity
+of only O(nm).
+
+However, splitting at 50% capacity does mean that in the best case our
+metadata pairs will only be 1/2 full. If we include the overhead of the second
+block in our metadata pair, each metadata entry has an effective storage cost
+of 4x the original size. I imagine users would be very unhappy if they found
+that they can only use a quarter of their original storage. Metadata pairs
+provide a mechanism for performing atomic updates, but we need a separate
+mechanism for storing the bulk of our data.
+
+*- scratch below -*
 
 
-3. If our block size is full of entries _and_ we can't find any garbage, then
-   what?
+
+However, this does mean that on average our metadata pair is only 1/2 full. If
+we include the overhead of the second block in our metadata pair, each metadata
+entry has an effective cost of 4x the amount of storage.
+
+This limits
+the overhead of garbage collection to 2x the cost. We do this lazily, only
+checking this limit when we already need to compact.
+
+
+
+
+
+
+
+
+
+
+
+
+`s` static entries
+(entries that bytes for each
+entry, `n` active entries, `o` outdated entries, and `c` total capacity in
+bytes. If we look at the amortized runtime complexity of updating this log we
+get this formula:
 
 
 
@@ -703,6 +816,14 @@ all files contained in a single directory in a single metadata block.
 Now we could just leave files here, copying the entire file on write
 provides the synchronization without the duplicated memory requirements
 of the metadata blocks. However, we can do a bit better.
+
+
+*- new below -*
+
+
+
+
+*- old below -*
 
 ## CTZ skip-lists
 
