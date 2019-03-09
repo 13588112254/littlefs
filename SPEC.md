@@ -365,23 +365,16 @@ Layout of the superblock name tag and inline-struct tag:
  '----------------- valid bit
 
         tag                          data
-[--      32      --][--      32      --|--      32      --|
-[1|- 11 -| 10 | 10 ][--      32      --|--      32      --|
- ^    ^     ^    ^            ^- version         ^- block size
+[--      32      --][--      32      --|--      32      --|--      32      --]
+[1|- 11 -| 10 | 10 ][--      32      --|--      32      --|--      32      --]
+ ^    ^     ^    ^            ^- version         ^- block size      ^- block count
+ |    |     |    |  [--      32      --|--      32      --|--      32      --]
+ |    |     |    |  [--      32      --|--      32      --|--      32      --]
+ |    |     |    |            ^- name max        ^- file max        ^- attr max
  |    |     |    '- size (24)
  |    |     '------ id (0)
  |    '------------ type (0x201)
  '----------------- valid bit
-
-                        data (cont)
-|--      32      --|--      32      --|--      32      --|
-|--      32      --|--      32      --|--      32      --|
-          ^- block count     ^- name max        ^- file max
-
-     data (cont)
-|--      32      --]
-|--      32      --]
-          ^- attr max
 ```
 
 Superblock fields:
@@ -667,7 +660,7 @@ littlefs has a concept of "global state". This is a small set of state that
 can be updated by a commit to _any_ metadata pair in the filesystem.
 
 The way this works is that the global state is stored as a set of deltas
-distributed across the filesystem such that the global state can by found by
+distributed across the filesystem such that the global state can be found by
 the xor-sum of these deltas.
 
 ```

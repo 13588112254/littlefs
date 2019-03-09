@@ -23,8 +23,8 @@ unbounded memory?
 The embedded systems littlefs targets are usually 32-bit microcontrollers with
 around 32KiB of RAM and 512KiB of ROM. These are often paired with SPI NOR
 flash chips with about 4MiB of flash storage. These devices are too small for
-Linux and most filesystems, requiring code written specifically with size in
-mind.
+Linux and most existing filesystems, requiring code written specifically with
+size in mind.
 
 Flash itself is an interesting piece of technology with its own quirks and
 nuance. Unlike other forms of storage, writing to flash requires two
@@ -32,7 +32,7 @@ operations: erasing and programming. Programming (setting bits to 0) is
 relatively cheap and can be very granular. Erasing however (setting bits to 1),
 requires an expensive and destructive operation that gives flash its name.
 [Wikipedia](https://en.wikipedia.org/wiki/Flash_memory) has more information
-about this if you are interested in how flash works.
+about how exactly flash works.
 
 To make things more annoying, it's common for these embedded systems to lose
 power at any time. Usually, microcontroller code is simple and reactive, with
@@ -165,19 +165,19 @@ where the COW data structures are synchronized.
 
 ## Existing designs?
 
-So what's out there? There are, of course, many different filesystems, however
-they often share and borrow feature from each other. If we only look at
-power-loss resilience and wear leveling, we can narrow these down to only a
-handful of designs.
+So what's already out there? There are, of course, many different filesystems,
+however they often share and borrow feature from each other. If we look at
+power-loss resilience and wear leveling, we can narrow these down to a handful
+of designs.
 
 <!-- pic here? -->
 
-1. First we have the non-resilient block based filesystems, such as FAT and
+1. First we have the non-resilient, block based filesystems, such as FAT and
    ext2. These are the the earliest filesystem designs and often the most
    simple. Here storage is divided into blocks, with each file being stored
-   in a collection of blocks.  Without modifications, these filesystems are
+   in a collection of blocks. Without modifications, these filesystems are
    not power-loss resilient, so updating a file is a simple as rewriting the
-   blcoks in place.
+   blocks in place.
 
    Because of their simplicity, these filesystems are usually both the fastest
    and smallest. However the lack of power resilience is, of course, bad, and
@@ -213,66 +213,68 @@ handful of designs.
 <!-- pic here? -->
 
 3. Perhaps the most common type of filesystem, a journaling filesystem, such
-   as ext4 and NTFS, is what happens when you try to mate a block based
-   filesystem with a logging filesystem. Here, we take a normal block based
-   filesystem and add a bounded log where we note every change before it
-   occurs.
+   as ext4 and NTFS, is the offspring that happens when you mate a block
+   based filesystem with a logging filesystem. Here, we take a normal block
+   based filesystem and add a bounded log where we note every change before
+   it occurs.
 
    This sort of filesystem takes the best from both worlds. Performance can be
-   as fast as a block based filesystem (though updating the journal does slow
-   it down a bit), and atomic updates to the journal allow the filesystem to
+   as fast as a block based filesystem (though updating the journal does have
+   a small cost), and atomic updates to the journal allow the filesystem to
    recover in the event of a power loss.
 
-   Unfortunately, journaling filesystems have two problems. They are fairly
-   complex, since there are effectively two filesystems running in parallel,
-   which comes with a code size cost. They also offer no protection against
-   wear because of the strong relationship between storage location and data.
+   Unfortunately, journaling filesystems have a couple of problems. They are
+   fairly complex, since there are effectively two filesystems running in
+   parallel, which comes with a code size cost. They also offer no protection
+   against wear because of the strong relationship between storage location
+   and data.
 
 <!-- pic here? -->
 
 4. Last but not least we have copy-on-write (COW) filesystems, such as btrfs
    and ZFS. These are very similar to other block based filesystems, but
    instead of updating block inplace, all updates are performed by creating
-   a copy and then updating the reference to the block. This effectively
-   pushes all of our problems upwards until we reach the root of our
-   filesystem, which is often stored in a very small log.
+   a copy with the changes and replacing any references to the old block with
+   our new block. This recursively pushes all of our problems upwards until we
+   reach the root of our filesystem, which is often stored in a very small log.
 
-   COW filesystems are very enticing. They offer very similar performance to
+   COW filesystems are interesting. They offer very similar performance to
    block based filesystems while managing to pull off atomic updates without
    storing data changes directly in a log. They even disassociate the storage
-   location of data, which creates the opportunity for wear leveling.
+   location of data, which creates an opportunity for wear leveling.
 
    Well, almost. The unbounded upwards movement of updates causes some
    problems. Because updates to a COW filesystem don't stop until they've
    reached the root, an update can cascade into a larger set of writes than
-   the original data. On top of this, the upward motion focuses these writes
-   into the block, which can wear out much earlier than the rest of our
-   filesystem.
+   would be needed for the original data. On top of this, the upward motion
+   focuses these writes into the block, which can wear out much earlier than
+   the rest of the filesystem.
 
 ## littlefs
 
 So what does littlefs do?
 
-If we look at existing filesystems, there are two specific design patterns that
-stand out, but each have their own set of problems. Logging, which provides
-independent atomicity, has poor runtime performance, and COW structures, which
-perform well, push the atomicity problem upwards.
+If we look at existing filesystems, there are two interesting design patterns
+that stand out, but each have their own set of problems. Logging, which
+provides independent atomicity, has poor runtime performance. And COW data
+structures, which perform well, push the atomicity problem upwards.
 
 Can we work around these limitations?
 
 Consider logging. It has either a O(n^2) runtime or O(n) RAM cost. We can't
 avoid these costs, _but_ if we put an upper bound on the size we can at least
-prevent the theoretical cost from becoming problem. This is sort of like the
-old computer science trick where you can reduce any algorithmic complexity to
+prevent the theoretical cost from becoming problem. This relies on the old
+computer science trick where you can reduce any algorithmic complexity to
 O(1) by simply bounding the input.
 
-In the case of COW structures, we can try twisting the definition a bit. Lets
-say that our COW structure doesn't copy after a single write, but instead
+In the case of COW data structures, we can try twisting the definition a bit.
+Lets say that our COW structure doesn't copy after a single write, but instead
 copies after n writes. This doesn't change most COW properties (assuming you
 can write atomically!), but what it does do is prevents the upward motion of
 wear. This sort of copy-on-bounded-writes (COBW) still focuses wear, but at
 each level we divide the propogation of wear by n. With a sufficiently
-large n wear propogation is no longer a problem.
+large n (> branching factor) wear propogation is no longer a
+problem.
 
 Do you see where this is going? Seperate, logging and COW are imperfect
 solutions and have weaknesses that limit their usefulness. But if we merge
@@ -469,10 +471,10 @@ also gives us a rough idea of how many erases have occured on the block.
 --- <!-- picture of metadata pair tree? -->
 
 So how do atomically update our metadata pairs? Atomicity (a type of
-power-loss resilience) requires two parts, redundancy and error detection.
-Error detection can be provided with a checksum, in littlefs's case we use a
-32-bit CRC. Maintaining redundancy, on the other hand, requires multiple
-stages.
+power-loss resilience) requires two parts: redundancy and error detection.
+Error detection can be provided with a checksum, and in littlefs's case we
+use a 32-bit CRC. Maintaining redundancy, on the other hand, requires
+multiple stages.
 
 1. If our block is not full and the program size is small enough to let us
    append more entries, we can simply append the entries to the log. Because
@@ -522,6 +524,11 @@ stages.
    This is a tradeoff as this approach does use more storage space, but at the
    benefit of improved scalability.
 
+   Despite writing to two metadata pairs, we can still maintain power
+   resilience during this split step by first preparing the new metadata pair,
+   and then inserting the tail pointer during the commit to the original
+   metadata pair.
+
    <!-- pic -->
 
 There is another complexity the pops up when dealing with small logs. The
@@ -534,7 +541,7 @@ Consider two extremes:
 1. Log is empty, garbage collection occurs once every n updates, amortized
    complexity is O(n)/n = O(1) for every update.
 2. Log is full, garbage collection occurs every update, amortized
-   complexity is O(n^2)/1 = O(n^2) for every update.
+   complexity is O(n^2)/1 = O(n^2) for **every** update.
   
 Clearly we need to be more aggressive than waiting for our metadata pair to
 be full. As the metadata pair approaches fullness the frequency of compactions
@@ -577,16 +584,15 @@ giving us an amortized runtime complexity of O(1).
 --- <!-- TODO need this bar here? -->
 
 If we look at metadata pairs and linked-lists of metadata pairs at a high
-level, they are pretty nice in terms of runtime costs. Assuming n metadata
-pairs, each containing m metadata entries, the lookup cost for a specific
-entry has a worst case runtime complexity of O(nm). For updating a specific
-entry, the worst case complexity is O(nm^2), with an amortized complexity
-of only O(nm).
+level, they have fairly nice runtime costs. Assuming n metadata pairs, each
+containing m metadata entries, the lookup cost for a specific entry has a
+worst case runtime complexity of O(nm). For updating a specific entry, the
+worst case complexity is O(nm^2), with an amortized complexity of only O(nm).
 
 However, splitting at 50% capacity does mean that in the best case our
 metadata pairs will only be 1/2 full. If we include the overhead of the second
 block in our metadata pair, each metadata entry has an effective storage cost
-of 4x the original size. I imagine users would be very unhappy if they found
+of 4x the original size. I imagine users would not be happy if they found
 that they can only use a quarter of their original storage. Metadata pairs
 provide a mechanism for performing atomic updates, but we need a separate
 mechanism for storing the bulk of our data.
@@ -772,6 +778,312 @@ arithmetic to handle revision count overflow, but the basic concept
 is the same. These metadata pairs define the backbone of the littlefs, and the
 rest of the filesystem is built on top of these atomic updates.
 
+
+*- new below -*
+
+## CTZ skip-lists
+
+Metadata pairs provide efficient atomic updates but unfortunately have a large
+storage cost. But we can work around this storage cost by using the metadata
+pairs to store references to more dense, copy-on-write ([COW](https://upload.wikimedia.org/wikipedia/commons/0/0c/Cow_female_black_white.jpg])
+data structures.
+
+Copy-on-write (COW) data structures, also called functional data structures,
+are a category of data structures where the underlying elements are immutable.
+Making changes to the data requires creating new elements containing a copy of
+the updated data and replacing any references to the old elements with
+references to the new elements. Generally, the performance of a COW data
+structure depends on how much of the old elements can be reused after replacing
+parts of the data.
+
+littlefs has several requirements of its COW structures. They need to be
+efficient to read and write, but most frustrating, they need to be traversable
+with a constant amount of RAM. Notably this rules out B-trees, which can not
+be traversed with constant RAM, and B+-trees, which are not possible to update
+with COW operations.
+
+--- <!-- need this bar? -->
+
+So, what can we do? First lets consider storing files in a simple COW
+linked-list. Appending a block, which is the basis for writing files, means we
+have to update the last block to point to our new block. This requires a COW
+operation, which means we need to update the second-to-last block, and then the
+third-to-last, and so on until we've copied out the entire file.
+
+```
+Exhibit A: A linked-list
+.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
+| data 0 |->| data 1 |->| data 2 |->| data 4 |->| data 5 |->| data 6 |
+|        |  |        |  |        |  |        |  |        |  |        |
+|        |  |        |  |        |  |        |  |        |  |        |
+'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
+```
+
+To avoid a full copy during appends, we can store the data backwards. Appending
+blocks just requires adding the new block and no other blocks need to be
+updated. If we update a block in the middle, we still need to copy the
+following blocks, but can reuse any blocks before it. Since most file writes
+are linear, this design gambles that appends are the most common type of data
+update.
+
+```
+Exhibit B: A backwards linked-list
+.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
+| data 0 |<-| data 1 |<-| data 2 |<-| data 4 |<-| data 5 |<-| data 6 |
+|        |  |        |  |        |  |        |  |        |  |        |
+|        |  |        |  |        |  |        |  |        |  |        |
+'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
+```
+
+However, a backwards linked-list does have a rather glaring problem.
+Iterating over a file _in order_ has a runtime cost of O(n^2). A quadratic
+runtime just to read a file! That's awful.
+
+Fortunately we can do better. Instead of a singly linked list, littlefs
+uses a multilayered linked-list often called a skip-list. However, unlike
+the most common type of skip-list, littlefs's skip-lists are strictly
+deterministic built around some interesting properties of the
+count-trailing-zeros (CTZ) instruction.
+
+The rules CTZ skip-lists follow are that for every nth block where n is
+divisible by 2^x, that block contains a pointer to block n-2^x. This means
+that each block contains anywhere from 1 to log2(n) pointers that skip to
+different preceding elements of the skip-list.
+
+The name comes from heavy use of the [count trailing zeros (CTZ)](https://en.wikipedia.org/wiki/Count_trailing_zeros)
+instruction, which lets us calculate the power-of-two factors efficiently.
+For a given block n, that block contains ctz(n)+1 pointers.
+
+```
+Exhibit C: A backwards CTZ skip-list
+.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
+| data 0 |<-| data 1 |<-| data 2 |<-| data 3 |<-| data 4 |<-| data 5 |
+|        |<-|        |--|        |<-|        |--|        |  |        |
+|        |<-|        |--|        |--|        |--|        |  |        |
+'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
+```
+
+The additional pointers let us navigate the data-structure on disk much more
+efficiently than in a singly linked list.
+
+Taking exhibit C for example, here is the path from data block 5 to data
+block 1. You can see how data block 3 was completely skipped:
+```
+.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
+| data 0 |  | data 1 |<-| data 2 |  | data 3 |  | data 4 |<-| data 5 |
+|        |  |        |  |        |<-|        |--|        |  |        |
+|        |  |        |  |        |  |        |  |        |  |        |
+'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
+```
+
+The path to data block 0 is even faster, requiring only two jumps:
+```
+.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
+| data 0 |  | data 1 |  | data 2 |  | data 3 |  | data 4 |<-| data 5 |
+|        |  |        |  |        |  |        |  |        |  |        |
+|        |<-|        |--|        |--|        |--|        |  |        |
+'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
+```
+
+We can find the runtime complexity by looking at the path to any block from
+the block containing the most pointers. Every step along the path divides
+the search space for the block in half, giving us a runtime of O(log n). To
+get _to_ the block with the most pointers, we can perform the same steps
+backwards, which puts the runtime at O(2 log n) = O(log n). An interesting
+note is that this optimal path occurs naturally if we greedily choose the
+pointer that covers the most distance without passing our target.
+
+So now we have a COW data structure that is cheap to append with a runtime of
+O(1), and can be read with a worst case runtime of O(n log n). Given that this
+runtime is also divided by the amount of data we can store in a block, this
+cost is fairly reasonable.
+
+-- <!-- need?-->
+
+This is a new data structure, so we still have several questions. What is the
+storage overage? Can the number of pointers exceed the size of a block? How do
+we store a CTZ skip-list in our metadata pairs?
+
+To find the storage overhead, we can look at the data structure as multiple
+linked-lists. Each linked-list skips twice as many blocks as the previous,
+or from another perspective, each linked-list uses half as much storage as
+the previous. As we approach infinity, the storage overhead forms a geometric
+series. Solving this tells us that on average our storage overhead is only
+2 pointers per block.
+
+![overhead_per_block](https://latex.codecogs.com/svg.latex?%5Clim_%7Bn%5Cto%5Cinfty%7D%5Cfrac%7B1%7D%7Bn%7D%5Csum_%7Bi%3D0%7D%5E%7Bn%7D%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%20%3D%20%5Csum_%7Bi%3D0%7D%5Cfrac%7B1%7D%7B2%5Ei%7D%20%3D%202)
+
+Because our file size is limited the word width we use to store sizes, we can
+also solve for the maximum number of pointers we would ever need to store in a
+block. If we set the overhead of pointers equal to the block size, we get the
+following equation. Note that both smaller block sizes and larger word widths
+result in more storage overhead.
+
+![maximum overhead](https://latex.codecogs.com/svg.latex?B%20%3D%20%5Cfrac%7Bw%7D%7B8%7D%5Cleft%5Clceil%5Clog_2%5Cleft%28%5Cfrac%7B2%5Ew%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D%5Cright%29%5Cright%5Crceil)
+
+where:  
+B = block size in bytes  
+w = word width in bits  
+
+Solving the equation for B gives us the minimum block size for some
+common word widths:  
+32 bit CTZ skip-list = minimum block size of 104 bytes  
+64 bit CTZ skip-list = minimum block size of 448 bytes  
+
+littlefs uses a 32-bit word width, so our blocks can only overflow with
+pointers if they are smaller than 104 bytes. This is an easy requirement, as
+in practice, most block sizes start at 512 bytes. As long as our block size
+is larger than 104 bytes, we can avoid the extra logic needed to handle
+pointer overflow.
+
+This last question is how do we store CTZ skip-lists? We need a pointer to the
+head block, the size of the skip-list, the index of the head block, and our
+offset in the head block. But it's worth noting that each size maps to a unique
+index + offset pair. So in theory we can store only a single pointer and size.
+
+However, calculating the index + offset pair from the size is a bit
+complicated. We can start with a summation that loops through all of the blocks
+up until our given size:
+
+![summation1](https://latex.codecogs.com/svg.latex?N%20%3D%20%5Csum_i%5En%5Cleft%5BB-%5Cfrac%7Bw%7D%7B8%7D%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%5Cright%5D)
+
+where:  
+B = block size in bytes  
+w = word width in bits  
+n = block index in skip-list  
+N = file size in bytes  
+
+This works quite well, but requires O(n) to compute, which brings the full
+runtime of reading a file up to O(n^2 log n). Fortunately, that summation
+doesn't need to touch the disk, so the practical impact is minimal.
+
+However, despite the integration of a bitwise operation, we can actually reduce
+this equation to a O(1) form.  While browsing the amazing resource that is the
+[On-Line Encyclopedia of Integer Sequences (OEIS)](https://oeis.org/),
+I managed to find [A001511](https://oeis.org/A001511), which matches the
+iteration of the CTZ instruction, and [A005187](https://oeis.org/A005187),
+which matches its partial summation. Much to my surprise, these both result
+from simple equations, leading us to a rather unintuitive property that ties
+together two seemingly unrelated bitwise instructions:
+
+![woah](https://latex.codecogs.com/svg.latex?%5Csum_i%5En%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%20%3D%202n-%5Ctext%7Bpopcount%7D%28n%29)
+
+where:  
+ctz(x) = the number of trailing bits that are 0 in x  
+popcount(x) = the number of bits that are 1 in x  
+
+Initial tests of this surprising property seem to hold. As n approaches
+infinity, we end up with an average overhead of 2 pointers, which matches what
+our assumption from earlier. During iteration, the popcount function seems to
+handle deviations from this average. And just to make sure, I wrote a quick
+script that verified this property for all 32-bit integers.
+
+Now we can substitute into our original equation to find a more efficient
+equation for file size:
+
+![summation2](https://latex.codecogs.com/svg.latex?N%20%3D%20Bn%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Cleft%282n-%5Ctext%7Bpopcount%7D%28n%29%5Cright%29)
+
+Unfortunately, the popcount function is non-injective, so we can't solve this
+equation for our index. But what we can do is solve for an n' index that is
+greater than n with error bounded by the range of the popcount function. We can
+repeatedly substitute n' into the original equation until the error is smaller
+than our integer resolution. As it turns out, we only need to perform this
+substitution once, which gives us this formula for our index:
+
+![formulaforn](https://latex.codecogs.com/svg.latex?n%20%3D%20%5Cleft%5Clfloor%5Cfrac%7BN-%5Cfrac%7Bw%7D%7B8%7D%5Cleft%28%5Ctext%7Bpopcount%7D%5Cleft%28%5Cfrac%7BN%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D-1%5Cright%29&plus;2%5Cright%29%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D%5Cright%5Crfloor)
+
+Now that we have our index n, we can just plug it back into the above equation
+to find the offset. We run into a bit of a problem with integer overflow, but
+we can avoid this by rearranging the equation a bit:
+
+![formulaforoff](https://latex.codecogs.com/svg.latex?%5Cmathit%7Boff%7D%20%3D%20N%20-%20%5Cleft%28B-2%5Cfrac%7Bw%7D%7B8%7D%5Cright%29n%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Ctext%7Bpopcount%7D%28n%29)
+
+Our solution requires quite a bit of math, but computer are very good at math.
+Now we can find both our block index and offset from a size in O(1), letting
+us store CTZ skip-lists with only a pointer and size.
+
+--- <!-- need? -->
+
+CTZ skip-lists give us a COW data structure that is easily traversable in O(n),
+can be appended in O(1), and can be read in O(n log n). All of these operations
+work in a bounded amount of RAM and require only two words of storage overhead
+per block. In combination with metadata pairs, CTZ skip-lists provide power
+resilience and compact storage of data.
+
+<!-- maybe no? Here is what it might look like to update a file stored with a CTZ skip-list: -->
+
+```
+                                      block 1   block 2
+                                    .---------.---------.
+                                    | rev: 1  | rev: 0  |
+                                    | file: 6 | file: 0 |
+                                    | size: 4 | size: 0 |
+                                    | xor: 3  | xor: 0  |
+                                    '---------'---------'
+                                        |
+                                        v
+  block 3     block 4     block 5     block 6
+.--------.  .--------.  .--------.  .--------.
+| data 0 |<-| data 1 |<-| data 2 |<-| data 3 |
+|        |<-|        |--|        |  |        |
+|        |  |        |  |        |  |        |
+'--------'  '--------'  '--------'  '--------'
+
+|  update data in file
+v
+
+                                      block 1   block 2
+                                    .---------.---------.
+                                    | rev: 1  | rev: 0  |
+                                    | file: 6 | file: 0 |
+                                    | size: 4 | size: 0 |
+                                    | xor: 3  | xor: 0  |
+                                    '---------'---------'
+                                        |
+                                        v
+  block 3     block 4     block 5     block 6
+.--------.  .--------.  .--------.  .--------.
+| data 0 |<-| data 1 |<-| old    |<-| old    |
+|        |<-|        |--| data 2 |  | data 3 |
+|        |  |        |  |        |  |        |
+'--------'  '--------'  '--------'  '--------'
+     ^ ^           ^
+     | |           |      block 7     block 8     block 9    block 10
+     | |           |    .--------.  .--------.  .--------.  .--------.
+     | |           '----| new    |<-| new    |<-| new    |<-| new    |
+     | '----------------| data 2 |<-| data 3 |--| data 4 |  | data 5 |
+     '------------------|        |--|        |--|        |  |        |
+                        '--------'  '--------'  '--------'  '--------'
+
+|  update metadata pair
+v
+
+                                                   block 1   block 2
+                                                 .---------.---------.
+                                                 | rev: 1  | rev: 2  |
+                                                 | file: 6 | file: 10|
+                                                 | size: 4 | size: 6 |
+                                                 | xor: 3  | xor: 14 |
+                                                 '---------'---------'
+                                                                |
+                                                                |
+  block 3     block 4     block 5     block 6                   |
+.--------.  .--------.  .--------.  .--------.                  |
+| data 0 |<-| data 1 |<-| old    |<-| old    |                  |
+|        |<-|        |--| data 2 |  | data 3 |                  |
+|        |  |        |  |        |  |        |                  |
+'--------'  '--------'  '--------'  '--------'                  |
+     ^ ^           ^                                            v
+     | |           |      block 7     block 8     block 9    block 10
+     | |           |    .--------.  .--------.  .--------.  .--------.
+     | |           '----| new    |<-| new    |<-| new    |<-| new    |
+     | '----------------| data 2 |<-| data 3 |--| data 4 |  | data 5 |
+     '------------------|        |--|        |--|        |  |        |
+                        '--------'  '--------'  '--------'  '--------'
+```
+
+*- old below -*
+
 ## Non-meta data
 
 Now, the metadata pairs do come with some drawbacks. Most notably, each pair
@@ -816,14 +1128,6 @@ all files contained in a single directory in a single metadata block.
 Now we could just leave files here, copying the entire file on write
 provides the synchronization without the duplicated memory requirements
 of the metadata blocks. However, we can do a bit better.
-
-
-*- new below -*
-
-
-
-
-*- old below -*
 
 ## CTZ skip-lists
 
@@ -1108,8 +1412,197 @@ v
      '------------------|        |--|        |--|        |  |        |
                         '--------'  '--------'  '--------'  '--------'
 ```
+**-- new below --**
 
-## Block allocation
+## The block allocator
+
+So we now have the framework for an atomic, wear leveling filesystem built out
+of blocks. But this raises an [elephant]((https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg)
+of a question. Where are all these blocks coming from?
+
+Block allocation, and indirectly wear leveling, is the responsibility of the
+block allocator. Block allocation is often overlooked, but in COW filesystems
+its role is very important as it is needed for nearly every write.
+
+Normally, block allocation involves some sort of free list or bitmap stored on
+the filesystem that is updated with free blocks. However, with power
+resilience, keeping these structure consistent becomes difficult. It doesn't
+help that any mistake in updating these structures can result in lost blocks
+that are impossible to recover. 
+
+littlefs takes a cautious approach. Instead of trusting a free list on disk,
+littlefs relies on the fact that the filesystem on disk is a mirror image of
+the free blocks on the disk. The block allocator operates much like a garbage
+collector in a scripting language, scanning for unused blocks on demand.
+
+While this sounds like it may be complicated, this decision actually simplifies
+the overall design of littlefs. Unlike scripting languages, the data structures
+and their elements in littlefs are controlled and limited. And block
+deallocation, which occurs almost as often as block allocation, is simply a
+noop. This "drop it on the floor" strategy greatly simplifies the
+implementation of littlefs, especially when handling high-risk error
+conditions.
+
+--- <!-- need this? -->
+
+Our block allocator needs to find free blocks efficiently. You could iterate
+through every block on storage and check each one against our filesystem tree,
+however the runtime would be abhorrent. We need to somehow collect multiple
+blocks each traversal.
+
+Looking at existing designs, some PC filesystems that use a similar "drop it on
+the floor" strategy actually store a bitmap of the entire store in RAM. This
+works well because bitmaps are surprisingly compact. We can't use the same
+strategy here, as it violates our constant RAM requirement, but it hints at a
+workable solution.
+
+The block allocator in littlefs is a compromise between these two approaches.
+It doesn't keep track of a bitmap the size of storage, but it does keep track
+of a small, fixed-size bitmap called the lookahead buffer. During block
+allocation, blocks are taken from this lookahead buffer until it's empty,
+after which the filesystem is scanned for more free blocks. Every scan the
+lookahead buffer considers an increasing offset, circling storage as blocks
+are allocated.
+
+Here's what it might look like to allocate 4 blocks on a decently busy
+filesystem with a 32bit lookahead and a total of
+128 blocks (512Kbytes of storage if blocks are 4Kbyte):
+```
+boot...         lookahead:
+                fs blocks: fffff9fffffffffeffffffffffff0000
+scanning...     lookahead: fffff9ff
+                fs blocks: fffff9fffffffffeffffffffffff0000
+alloc = 21      lookahead: fffffdff
+                fs blocks: fffffdfffffffffeffffffffffff0000
+alloc = 22      lookahead: ffffffff
+                fs blocks: fffffffffffffffeffffffffffff0000
+scanning...     lookahead:         fffffffe
+                fs blocks: fffffffffffffffeffffffffffff0000
+alloc = 63      lookahead:         ffffffff
+                fs blocks: ffffffffffffffffffffffffffff0000
+scanning...     lookahead:         ffffffff
+                fs blocks: ffffffffffffffffffffffffffff0000
+scanning...     lookahead:                 ffffffff
+                fs blocks: ffffffffffffffffffffffffffff0000
+scanning...     lookahead:                         ffff0000
+                fs blocks: ffffffffffffffffffffffffffff0000
+alloc = 112     lookahead:                         ffff8000
+                fs blocks: ffffffffffffffffffffffffffff8000
+```
+
+This lookahead approach still has a runtime complexity of O(n^2) to
+completely scan storage, however, bitmaps are surprisingly compact, and in
+practice only one or two passes are usually needed to find free blocks.
+Additionally, the performance of the allocator can be controlled by the
+combination of the block size and lookahead size, trading either write
+granularity or RAM for speed.
+
+--- <!-- need this? -->
+
+On top of performance, the block allocator has a secondary role: wear leveling
+filesystem writes.
+
+Wear leveling is a term that describes distributing block writes evenly to
+avoid the early termination of a flash part. There are typically two levels
+of wear leveling:
+
+1. Dynamic wear leveling - Wear is distributed evenly across all **dynamic**
+   blocks. Usually this is accomplished by simply choosing the unused block
+   with the lowest amount of wear. Note this does not solve the problem of
+   static data.
+
+2. Static wear leveling - Wear is distributed evenly across all **dynamic**
+   and **static** blocks. Unmodified blocks may be evicted for new block
+   writes. This does handle the problem of static data but may lead to
+   wear amplification.
+
+The first step to provide wear leveling is to make sure that all blocks can
+participate in eviction for the block allocator.
+
+blblblbl
+
+Once the block allocator has control of all blocks, it is then responsible for
+making sure the wear is evenly distributed.
+
+littlefs provides a form of statisical wear leveling.
+
+blblblblbl
+
+geh
+
+another day:wq
+
+
+
+
+. It is
+responsible for 
+
+
+Wear leveling
+
+
+
+
+
+
+Much like a garbage collector found in a s
+
+
+
+allocation info on
+disk, littlefs relies on the fact that the blocks in the filesystem is a mirror
+image of the free blocks. Much like a garbage collector found in high-level
+languages, littlefs tries to find unused blocks on demand.
+
+
+
+
+
+
+
+
+
+
+
+
+Figuring out which block can be used next, and indirectly wear leveling, is the
+responsibility of the block allocator. The block allocator in littlefs has a
+very important role as nearly every update involves block allocation.
+
+
+
+ in
+littlefs, since
+
+Block allocation, and indirectly wear leveling, 
+
+
+So we now have a filesystem built out of metadata pairs and CTZ skip-lists. A
+key feature of filesystem so far is that all of the data structures are some
+form of copy-on-bounded-writes (COBW), with blocks in the CTZ skip-lists being
+evicted every write, and metadata pairs being evicted after a bounded number
+of writes. 
+
+
+
+the filesystem so far is that all of the data structures are
+some form of copy-on-bounded-writes (COBW), which 
+
+
+on two blocks and CTZ
+skip-lists containing any number of blocks. This leaves an [elephant](https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg)
+of a question. Where are all these blocks coming from?
+
+
+
+
+
+
+
+**-- old below --**
+
+## The block allocator
 
 So those two ideas provide the grounds for the filesystem. The metadata pairs
 give us directories, and the CTZ skip-lists give us files. But this leaves
@@ -1204,6 +1697,213 @@ The real benefit of this approach is just how much it simplified the design
 of the littlefs. Deallocating blocks is as simple as simply forgetting they
 exist, and there is absolutely no concern of bugs in the deallocation code
 causing difficult to detect memory leaks.
+
+**- new below -**
+
+## Files
+
+Now that we have our building blocks out of the way, we can start looking at
+our filesystem as a whole.
+
+The first step is how do we actually store our files?
+
+We've determined that CTZ skip-lists are pretty good at storing data compactly,
+so following the precedent found in other filesystems we could give each file
+a skip-list stored in a metadata pair that acts as an inode for the file.
+
+However, this doesn't work well when files are small, which is common for
+embedded systems. Compared to PCs, all of the data in an embedded system is
+small.
+
+Consider a small 4-byte file. With a two block metadata-pair and one block for
+the CTZ skip-list, we find ourselves using a full 3 blocks. On most NOR flash
+with 4KiB blocks, this is 12KiB of overhead. A silly 3072x increase.
+
+<!-- pic here? -->
+
+We can make several improvements here. First, instead of giving each file its
+own metadata pair, we can store multiple files in a single metadata pair. One
+way to do this is to strictly tie together the idea of a directory with a
+metadata pair (well, a linked list of metadata pairs). This allows multiple
+files to share the directories metadata pair for logging and reduce the
+collective storage overhead.
+
+The strict binding of metadata pairs and directories also gives users more
+control over storage utilization with the layout of directories they create.
+
+<!-- pic here? -->
+
+The second improvement we can make is noticing that for very small files, our
+attempts to use CTZ skip-lists for compact storage actually backfires. Metadata
+pairs have a ~4x storage cost, so if our file is smaller than 1/4 the block
+size, there's actually no benefit in storing our file outside of our metadata
+pair.
+
+In this case, we can simple store the file directly in our directory's metadata
+pair. We call this an inline file, and it allows a directory to store many
+small files quite efficiently. Our previous 4 byte file now only takes up a
+theoretical 16 bytes on disk.
+
+Once the file exceeds 1/4 the block size, we switch to a CTZ skip-list. This
+means that our files never use more than 4x storage overhead, decreasing as
+the file grows in size.
+
+<!-- pic here? -->
+
+## Directories
+
+Now we just need directories to store our files. As mentioned above we want
+a strict binding of directories and metadata pairs, but that doesn't mean there
+aren't complications we need to sort out.
+
+On their own, each directory is a linked-list of metadata pairs. This lets us
+store an unlimited number of files in each directory without worrying about the
+runtime complexity of unbounded logs. We can also store other directory
+pointers in our metadata pairs, which gives us a directory tree.
+
+<!-- pic here? -->
+
+The main complication we run into is, once again, traversal with a constant
+amount of RAM. The directory tree is a tree, and you can't traverse a tree with
+constant RAM.
+
+Fortunately, the elements of our tree are metadata pairs, so unlike CTZ
+skip-lists, we're not limited to strict COW operations. This means one thing
+we can do is thread a linked-list through our tree, allowing cheap iteration
+over the entire filesystem.
+
+<!-- pic here? -->
+
+Unfortunately, not sticking to pure COW operations introduces a significant
+amount of complexity. Now, whenever we want to manipulate the directory tree,
+multiple pointers will need to be updated. If you're familiar with building
+atomic data structures this should set off a whole bunch of red flags.
+
+To work around this, our threaded linked-list needs a bit of leeway. Instead
+of containing only metadata pairs in our filesystem, it is allowed to contain
+orphaned metadata pairs. Metadata pairs that have no parent because of a power
+loss during an insertion or removal.
+
+Here's an example of adding a directory to our tree:
+
+<!-- pic here -->
+
+And here's an example of removing a directory:
+
+<!-- pic here -->
+
+In addition to normal directory tree operations, we use orphans to handle the
+case of a block going bad in a metadata pair. When this happens, we can change
+out the bad block, but if we lose power we may end up with a half-orphan:
+
+<!-- pic here -->
+
+Finding orphans is expensive, requiring a O(n^2) comparison of every metadata
+pair with every directory entry. But the tradeoff is a power resilient
+filesystem that works with only a bounded amount of RAM. Fortunately, we only
+need to check for orphans on the first allocation after boot, and a read-only
+littlefs can ignore the threaded linked-list entirely.
+
+If only we had some sort of global state. Then we could simply store a flag
+and avoid searching for orphans unless we knew we were interrupted while
+manipulating the directory tree (this is foreshadowing).
+
+## The move problem
+
+We have one last challenge. The move problem. Phrasing the problem is simple:
+
+How do you move a file between two directories atomically?
+
+In littlefs we can update directories atomically, but we can't atomically
+commit changes that span multiple directories.
+
+We can't let moves result in duplicate files, since this could break user code
+and would only reveal itself in rare cases. And we definitely can't just lose
+the file if we lose power. We were able to be lazy about the threaded
+linked-list, but that was only because the threaded linked-list is not user
+facing and only impacts ourselves.
+
+To make matters worse, file renames are the main form of file synchronization
+on PCs. It's likely we'll see the same patterns used in the embedded space,
+which makes it very important that we get atomic moves right.
+
+<!-- TODO hmm, need this?
+Some filesystems work around this by propogating COW operations up the tree
+until we find a common parent. Unfortunately, this interacts poorly with our
+threaded tree and brings in a lot of complication. Allocating with multiple
+orphans is difficult, finding directory parents is not cheap, and this brings
+back the upward propogation of wear.
+
+The first version of littlefs worked around this by going back and forth from
+source to destination, marking and unmarking the file as moving to make the
+move atomic from the user's perspective. However fixing a move after power loss
+proved to be problematically expensive, and couldn't handle inline files, which
+don't have a unique identifier.
+
+-->
+
+There's no easy workaround. To solve the move problem we need some sort of
+mechanism for sharing knowledge between multiple metadata pairs. The solution
+in littlefs is the introduction of the concept of "global state".
+
+---  <!-- need this -->
+
+Global state is a small set of state that can be updated from _any_ metadata
+pair. Combining global state with metadata pair's ability to update multiple
+entries in one commit gives us a powerful tool for crafting complex atomic
+operations.
+
+How does global state work?
+
+Global state exists as a set of deltas that are distributed across the metadata
+pairs in the filesystem. The actual global state can be built out of these
+deltas by xoring together all of the deltas in the filesystem.
+
+<!-- pic here -->
+
+To update the global state from a metadata pair, we take the global state we
+know and xor it with our changes as well as any existing delta in the metadata
+pair. Committing this new delta to the metadata pair commits the changes to
+the global state.
+
+<!-- pic here -->
+
+To make this efficient, we always keep a copy of the global state in RAM. We
+only need to iterate over our metadata pairs and build the global state when
+the filesystem is mounted.
+
+You may have noticed that global state is very expensive. A copy is held in
+RAM, and even if global state returns to its null value, there may be a delta
+in every single metadata pair. What this means is that any global state must
+be kept extremely small. However, even with a strict budget, global state is
+very valuable, if only because it lets us solve the move problem.
+
+--- <!-- TODO need this? -->
+
+So how do we solve the move problem?
+
+With global state we can store information describing any ongoing moves. We can
+create this move state atomically with the creation of the new file at our
+destination, and we can clear this move state atomically with the removal of
+the old file at our source.
+
+<!-- pic here -->
+
+If, when we build our global state during mount, we find information describing
+an ongoing move, this means that we lost power during a move and the file
+exists at both the source and destination. If this happens, we need to resolve
+the move before we write to the filesystem.
+
+<!-- pic here? -->
+
+The result is a completely atomic move operation which is also surprisingly
+performant. In the end the number of updates needed is the same as a naive
+non-atomic move. Additionally we can use the global state for other small bits
+of info, such as a flag indicating the possible existance of orphans.
+
+
+
+**- old below -**
 
 ## Directories
 
@@ -1848,3 +2548,8 @@ So, to summarize:
 
 That's the little filesystem. Thanks for reading!
 
+**-- new below? (need more?) --**
+
+## Conclusion
+
+And that's littlefs, thanks for reading!
