@@ -52,83 +52,83 @@ script:
 # CI matrix
 jobs:
   include:
-#    # native testing
-#    - stage: test
-#      env:
-#        - STAGE=test
-#        - NAME=littlefs-x86
-#
-#    # cross-compile with ARM (thumb mode)
-#    - stage: test
-#      env:
-#        - STAGE=test
-#        - NAME=littlefs-arm
-#        - CC="arm-linux-gnueabi-gcc --static -mthumb"
-#        - EXEC="qemu-arm"
-#      install:
-#        - sudo apt-get install gcc-arm-linux-gnueabi qemu-user
-#        - arm-linux-gnueabi-gcc --version
-#        - qemu-arm -version
-#
-#    # cross-compile with PowerPC
-#    - stage: test
-#      env:
-#        - STAGE=test
-#        - NAME=littlefs-powerpc
-#        - CC="powerpc-linux-gnu-gcc --static"
-#        - EXEC="qemu-ppc"
-#      install:
-#        - sudo apt-get install gcc-powerpc-linux-gnu qemu-user
-#        - powerpc-linux-gnu-gcc --version
-#        - qemu-ppc -version
-#
-#    # cross-compile with MIPS
-#    - stage: test
-#      env:
-#        - STAGE=test
-#        - NAME=littlefs-mips
-#        - CC="mips-linux-gnu-gcc --static"
-#        - EXEC="qemu-mips"
-#      install:
-#        - sudo add-apt-repository -y "deb http://archive.ubuntu.com/ubuntu/ xenial main universe"
-#        - sudo apt-get -qq update
-#        - sudo apt-get install gcc-mips-linux-gnu qemu-user
-#        - mips-linux-gnu-gcc --version
-#        - qemu-mips -version
-#
-#    # self-host with littlefs-fuse for fuzz test
-#    - stage: test
-#      env:
-#        - STAGE=test
-#        - NAME=littlefs-fuse
-#      install:
-#        - sudo apt-get install libfuse-dev
-#        - git clone --depth 1 https://github.com/geky/littlefs-fuse -b v2-alpha
-#        - fusermount -V
-#        - gcc --version
-#      before_script:
-#        # setup disk for littlefs-fuse
-#        - rm -rf littlefs-fuse/littlefs/*
-#        - cp -r $(git ls-tree --name-only HEAD) littlefs-fuse/littlefs
-#
-#        - mkdir mount
-#        - sudo chmod a+rw /dev/loop0
-#        - dd if=/dev/zero bs=512 count=4096 of=disk
-#        - losetup /dev/loop0 disk
-#      script:
-#        # self-host test
-#        - make -C littlefs-fuse
-#
-#        - littlefs-fuse/lfs --format /dev/loop0
-#        - littlefs-fuse/lfs /dev/loop0 mount
-#
-#        - ls mount
-#        - mkdir mount/littlefs
-#        - cp -r $(git ls-tree --name-only HEAD) mount/littlefs
-#        - cd mount/littlefs
-#        - stat .
-#        - ls -flh
-#        - make -B test_dirs test_files QUIET=1
+    # native testing
+    - stage: test
+      env:
+        - STAGE=test
+        - NAME=littlefs-x86
+
+    # cross-compile with ARM (thumb mode)
+    - stage: test
+      env:
+        - STAGE=test
+        - NAME=littlefs-arm
+        - CC="arm-linux-gnueabi-gcc --static -mthumb"
+        - EXEC="qemu-arm"
+      install:
+        - sudo apt-get install gcc-arm-linux-gnueabi qemu-user
+        - arm-linux-gnueabi-gcc --version
+        - qemu-arm -version
+
+    # cross-compile with PowerPC
+    - stage: test
+      env:
+        - STAGE=test
+        - NAME=littlefs-powerpc
+        - CC="powerpc-linux-gnu-gcc --static"
+        - EXEC="qemu-ppc"
+      install:
+        - sudo apt-get install gcc-powerpc-linux-gnu qemu-user
+        - powerpc-linux-gnu-gcc --version
+        - qemu-ppc -version
+
+    # cross-compile with MIPS
+    - stage: test
+      env:
+        - STAGE=test
+        - NAME=littlefs-mips
+        - CC="mips-linux-gnu-gcc --static"
+        - EXEC="qemu-mips"
+      install:
+        - sudo add-apt-repository -y "deb http://archive.ubuntu.com/ubuntu/ xenial main universe"
+        - sudo apt-get -qq update
+        - sudo apt-get install gcc-mips-linux-gnu qemu-user
+        - mips-linux-gnu-gcc --version
+        - qemu-mips -version
+
+    # self-host with littlefs-fuse for fuzz test
+    - stage: test
+      env:
+        - STAGE=test
+        - NAME=littlefs-fuse
+      install:
+        - sudo apt-get install libfuse-dev
+        - git clone --depth 1 https://github.com/geky/littlefs-fuse -b v2-alpha
+        - fusermount -V
+        - gcc --version
+      before_script:
+        # setup disk for littlefs-fuse
+        - rm -rf littlefs-fuse/littlefs/*
+        - cp -r $(git ls-tree --name-only HEAD) littlefs-fuse/littlefs
+
+        - mkdir mount
+        - sudo chmod a+rw /dev/loop0
+        - dd if=/dev/zero bs=512 count=4096 of=disk
+        - losetup /dev/loop0 disk
+      script:
+        # self-host test
+        - make -C littlefs-fuse
+
+        - littlefs-fuse/lfs --format /dev/loop0
+        - littlefs-fuse/lfs /dev/loop0 mount
+
+        - ls mount
+        - mkdir mount/littlefs
+        - cp -r $(git ls-tree --name-only HEAD) mount/littlefs
+        - cd mount/littlefs
+        - stat .
+        - ls -flh
+        - make -B test_dirs test_files QUIET=1
 
     # Automatically create releases
     - stage: deploy
