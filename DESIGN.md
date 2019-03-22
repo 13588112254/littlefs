@@ -462,9 +462,9 @@ Clearly we need to be more aggressive than waiting for our metadata pair to
 be full. As the metadata pair approaches fullness the frequency of compactions
 grows very rapidly.
 
-Looking at the problem generically, consider a log with `n` bytes for each
-entry, `d` dynamic entries (entries that are outdated during garbage
-collection), and `s` static entries (entries that need to be copied during
+Looking at the problem generically, consider a log with ![n][n] bytes for each
+entry, ![d][d] dynamic entries (entries that are outdated during garbage
+collection), and ![s][s] static entries (entries that need to be copied during
 garbage collection). If we look at the amortized runtime complexity of updating
 this log we get this formula:
 
@@ -472,15 +472,16 @@ this log we get this formula:
 
 ![cost = n + n (s / d+1)][metadata-cost1]
 
-If we let `r` be the ratio of static space to the size of our log in bytes, we
-find an alternative representation of the number of static and dynamic entries:
+If we let ![r][r] be the ratio of static space to the size of our log in bytes,
+we find an alternative representation of the number of static and dynamic
+entries:
 
 ![s = r (size/n)][metadata-cost2]
 
 ![d = (1 - r) (size/n)][metadata-cost3]
 
-Substituting these in for `d` and `s` gives us a nice formula for the cost
-of updating an entry given how full the log is:
+Substituting these in for ![d][d] and ![s][s] gives us a nice formula for the
+cost of updating an entry given how full the log is:
 
 ![cost = n + n (r (size/n) / ((1-r) (size/n) + 1))][metadata-cost4]
 
@@ -495,7 +496,7 @@ To avoid this exponential growth, instead of waiting for our metadata pair
 to be full, we split the metadata pair once we exceed 50% capacity. We do this
 lazily, waiting until we need to compact before checking if we fit in our 50%
 limit. This limits the overhead of garbage collection to 2x the runtime cost,
-giving us an amortized runtime complexity of O(1).
+giving us an amortized runtime complexity of ![o1][o1].
 
 --- <!-- TODO need this bar here? -->
 
@@ -2390,4 +2391,9 @@ And that's littlefs, thanks for reading!
 [metadata-cost2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
 [metadata-cost3]: https://latex.codecogs.com/svg.latex?d%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
 [metadata-cost4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
-
+[on]: https://latex.codecogs.com/svg.latex?O%28n%29
+[o1]: https://latex.codecogs.com/svg.latex?O%281%29
+[r]: https://latex.codecogs.com/svg.latex?r
+[d]: https://latex.codecogs.com/svg.latex?d
+[s]: https://latex.codecogs.com/svg.latex?s
+[n]: https://latex.codecogs.com/svg.latex?n
