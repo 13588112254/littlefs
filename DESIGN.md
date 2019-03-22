@@ -2388,6 +2388,6 @@ And that's littlefs, thanks for reading!
 
 [metadata-cost1]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Bs%7D%7Bd&plus;1%7D
 [metadata-cost2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
-[metadata-cost3]: https://latex.codecogs.com/svg.latex?s%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
+[metadata-cost3]: https://latex.codecogs.com/svg.latex?d%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
 [metadata-cost4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
 
