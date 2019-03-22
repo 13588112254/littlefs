@@ -476,6 +476,7 @@ If we let `r` be the ratio of static space to the size of our log in bytes, we
 find an alternative representation of the number of static and dynamic entries:
 
 ![s = r (size/n)][metadata-cost2]
+
 ![d = (1 - r) (size/n)][metadata-cost3]
 
 Substituting these in for `d` and `s` gives us a nice formula for the cost
