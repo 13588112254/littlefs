@@ -496,7 +496,7 @@ To avoid this exponential growth, instead of waiting for our metadata pair
 to be full, we split the metadata pair once we exceed 50% capacity. We do this
 lazily, waiting until we need to compact before checking if we fit in our 50%
 limit. This limits the overhead of garbage collection to 2x the runtime cost,
-giving us an amortized runtime complexity of ![o1][o1].
+giving us an amortized runtime complexity of ![O(1)][O(1)].
 
 --- <!-- TODO need this bar here? -->
 
@@ -2391,8 +2391,8 @@ And that's littlefs, thanks for reading!
 [metadata-cost2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
 [metadata-cost3]: https://latex.codecogs.com/svg.latex?d%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
 [metadata-cost4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
-[on]: https://latex.codecogs.com/svg.latex?O%28n%29
-[o1]: https://latex.codecogs.com/svg.latex?O%281%29
+[O(n)]: https://latex.codecogs.com/svg.latex?O%28n%29
+[O(1)]: https://latex.codecogs.com/svg.latex?O%281%29
 [r]: https://latex.codecogs.com/svg.latex?r
 [d]: https://latex.codecogs.com/svg.latex?d
 [s]: https://latex.codecogs.com/svg.latex?s
