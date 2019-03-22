@@ -272,7 +272,7 @@ In the case of COW data structures, we can try twisting the definition a bit.
 Lets say that our COW structure doesn't copy after a single write, but instead
 copies after n writes. This doesn't change most COW properties (assuming you
 can write atomically!), but what it does do is prevents the upward motion of
-wear. This sort of copy-on-bounded-writes (COBW) still focuses wear, but at
+wear. This sort of copy-on-bounded-writes (CObW) still focuses wear, but at
 each level we divide the propogation of wear by n. With a sufficiently
 large n (> branching factor) wear propogation is no longer a
 problem.
@@ -290,64 +290,10 @@ that can be evicted on demand.
 
 There are still some minor issues. Small logs can be expensive in terms of
 storage, in the worst case a small log costs 4x the size of the original data.
-COBW structures require an efficient block allocator since allocation occurs
+CObW structures require an efficient block allocator since allocation occurs
 every n writes. And there is still the challenge of keeping the RAM usuage
 constant.
 
-**- scratch below -**
-
-
-
-
-
-
-
-
-COW updates still focus wear as it moves upwards, but at each level the wear is
-divided by n. With a sufficiently large n we can completely remove the focus of
-wear.
-
-
-
-
-
-
-but we can use an old computer science trick where putting
-an upper bound on our input reduces the complexity to O(1).
-
-
- If n is a constant
-
-
-
-We can actually work around some of these limitations. 
-
-
-
-
-We can actually improve log performance with a sort of computer science hack. 
-
-
-
-
-
-At a high level, littlefs attempts to merge these into two layers ordered by
-scale.
-
-
- by considering the filesystem
-to be split into two orders of scale.
-
-
-storage to be
-split 
-
-
- by splitting the filesystem into two layers
-of scale
-
-littlefs tries to attack the problem by splitting it
-into two different orders of scale.
 
 **- TODO move this to readme? -**
 ## High level
@@ -410,37 +356,7 @@ filesystem.
 ```
 
 The key to making littlefs efficient is the implementation of these components.
-
-
 **- TODO move this to readme? -**
-
-
-
-**-- scratch below --**
-
-Fortunately for us, data locality has very little
-impact on flash, so all blocks are treated equal
-
-
-
-
-
-
-
-
-
-This limits the cost of garbage collection while creating a balance
-between the upward cost of COW operations and the distribution of write
-operations.
-
-
-
-If we look at littlefs as a whole, these ingredients form a sort of two-layered
-cake, with 
-
-```
-```
-
 
 
 **-- new below? --**
@@ -546,7 +462,7 @@ Clearly we need to be more aggressive than waiting for our metadata pair to
 be full. As the metadata pair approaches fullness the frequency of compactions
 grows very rapidly.
 
-Looking at the problem generically, consider a log with `x` bytes for each
+Looking at the problem generically, consider a log with `n` bytes for each
 entry, `d` dynamic entries (entries that are outdated during garbage
 collection), and `s` static entries (entries that need to be copied during
 garbage collection). If we look at the amortized runtime complexity of updating
@@ -554,18 +470,18 @@ this log we get this formula:
 
 <!-- TODO formulas -->
 
-cost = x + x (s / d+1)
+![cost = n + n (s / d+1)][metadata-cost1]
 
 If we let `r` be the ratio of static space to the size of our log in bytes, we
 find an alternative representation of the number of static and dynamic entries:
 
-s = r (size/x)
-d = (1 - r) (size/x)
+![s = r (size/n)][metadata-cost2]
+![d = (1 - r) (size/n)][metadata-cost3]
 
 Substituting these in for `d` and `s` gives us a nice formula for the cost
 of updating an entry given how full the log is:
 
-cost = x + x (r (size/x) / ( (1-r) (size/x) + 1 ) )
+![cost = n + n (r (size/n) / ((1-r) (size/n) + 1))][metadata-cost4]
 
 Assuming 100 byte entries in a 1 MiB log, we can plot this:
 
@@ -595,135 +511,6 @@ of 4x the original size. I imagine users would not be happy if they found
 that they can only use a quarter of their original storage. Metadata pairs
 provide a mechanism for performing atomic updates, but we need a separate
 mechanism for storing the bulk of our data.
-
-*- scratch below -*
-
-
-
-However, this does mean that on average our metadata pair is only 1/2 full. If
-we include the overhead of the second block in our metadata pair, each metadata
-entry has an effective cost of 4x the amount of storage.
-
-This limits
-the overhead of garbage collection to 2x the cost. We do this lazily, only
-checking this limit when we already need to compact.
-
-
-
-
-
-
-
-
-
-
-
-
-`s` static entries
-(entries that bytes for each
-entry, `n` active entries, `o` outdated entries, and `c` total capacity in
-bytes. If we look at the amortized runtime complexity of updating this log we
-get this formula:
-
-
-
- to
-   clean, then what?
-3.
-
-    
-
-   Note that this is also when we erase our increment our revision count
-   
-   
-
-
-
-
- the extra block in our metadata pair. This is where
-   having two blocks becomes important because if we lose power we still have
-   the data in our original block. To determine which block is the most 
-
-
-littlefs's garbage
-   collector is relatively simple. Because 
-   
-
-
-but since littlefs has multiple garbage collectors we call
-   this compaction.
-
-
-  is called garbage collection
- 
-
-
-
- we need to collect any outdated entries. 
-   perform garbage collection in what littlefs calls
-   the "compact" step. Here we use a RAM conservative approach where we check
-   that each entry is the most recent in the metadata pair, if it is we write
-   it to our new block. 
-
-
-iterate
-over each entry for each entry 
-
-
-Many logs use a checksum for each entry, but this means that each entry is
-its own synchronization point if power is lost. In littlefs's case 
-
-So what is stored in metadata pairs?
-
-
-
-**-- scratch below --**
-
-
-
-are a circular buffer of updates
-
-
- work by appending entries to a circular buffer
-stored in disk. But remember that flash is limited to performing block sized
-erases. We can incrementally program new data, but in order to write over old
-data we need to erase that block at some point. This means that in order for
-logs to function, we need to 
-
-
- Well, the way logs work is that we append entries to the log
-until the log is full. But once the log is full we can't just become
-unresponsive, we need to clean up outdated entries. This process is called
-garbage collection. We can do this by iterating through the oldest entries and
-move any entries that are still valid to the end of the log.
-
-
-## Metadata pairs
-
-So, 
-
-
-
-Metadata pairs form the backbone of littlefs and provide a system for
-distributed atomic updates. A metadata pair is a small, two block log that can
-be updated atomically.
-
-
-
-
-
-
-
-
-Metadata pairs provide the backbone for littlefs. These are small, two block
-logs that can be updated atomically.
-
-
-
-
-The backbone of littlefs 
-
-The cornerstone of littlefs are the metadata pairs 
 
 **-- old below --**
 
@@ -1642,237 +1429,6 @@ Together, bad block detection and dynamic wear leveling provide a best effort
 solution for avoiding the early death of a filesystem due to wear. Importantly,
 littlefs's wear leveling algorithm provides a key feature: You can increase the
 life of a device simply by increasing the size of storage.
-
-
-
-**-- scratch below --**
-Increasing the life
-of a device
-
-
-of a devices does not require buying a more expensive flash part, instead the
-life of a device can be increased by 
-
-
-
-
-
-To drive the random number generator, we can 
-
-
-. This is especially
-hard 
-
-
-
-
-
-
-to restart
-the allocator. The combined
-
-
-
-this random offset is uniform, the combined allocation pattern is a unform 
-
-
- chose an offset to restart 
-
-
-
-
-
-relatively simple wear leveling algorithm.
-
-
-
-
-
-
-In consider unused blocks, called "dynamic" blocks because the data
-on the blocks may be changing; and state 
-as they are 
-
-When talking about wear leveling, we 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-errors but may still
-be able to detect and 
-
----
-
-
-still
-have
-
-
-
-
-
-
-It also listens to any errors reported by the block device, which can be useful 
-
-
-The first step in detecting bad blocks is to 
-
-
-
-
-Once we've found a bad block, we need to be able to evict it and replace it
-with what is hopefully a good block.
-
-
-
-
-
-
-
-Wear leveling is the action of distributing block writes evenly across storage
-to avoid an early end of life from individual blocks dying early due to
-unbalanced wear. There are typically two categories of wear leveling
-algorithms:
-
-1. Dynamic wear leveling - Wear is distributed evenly across all **dynamic**
-   blocks. Usually this is accomplished by simply choosing the unused block
-   with the lowest amount of wear.
-   static data.
-
-2. Static wear leveling - Wear is distributed evenly across all **dynamic**
-   and **static** blocks. Unmodified blocks may be evicted for new block
-   writes. This does handle the problem of static data but may lead to
-   wear amplification.
-
-Recovering from bad blocks doesn't really have anything to do with the block
-allocator itself. It relies on the ability to detect and evict any bad block
-found in the filesystem.
-
-in t
-
- wearing out a blocks that are written to more
-than others
-
-heavy wear on a single block 
-
-
-a term that describes distributing block writes evenly to
-avoid the early termination of a flash part. There are typically two levels
-of wear leveling:
-
-
-
-
-On top of performance, the block allocator has a secondary role: wear leveling
-filesystem writes.
-
-Wear leveling is a term that describes distributing block writes evenly to
-avoid the early termination of a flash part. There are typically two levels
-of wear leveling:
-
-1. Dynamic wear leveling - Wear is distributed evenly across all **dynamic**
-   blocks. Usually this is accomplished by simply choosing the unused block
-   with the lowest amount of wear. Note this does not solve the problem of
-   static data.
-
-2. Static wear leveling - Wear is distributed evenly across all **dynamic**
-   and **static** blocks. Unmodified blocks may be evicted for new block
-   writes. This does handle the problem of static data but may lead to
-   wear amplification.
-
-The first step to provide wear leveling is to make sure that all blocks can
-participate in eviction for the block allocator.
-
-blblblbl
-
-Once the block allocator has control of all blocks, it is then responsible for
-making sure the wear is evenly distributed.
-
-littlefs provides a form of statisical wear leveling.
-
-blblblblbl
-
-geh
-
-another day:wq
-
-
-
-
-. It is
-responsible for 
-
-
-Wear leveling
-
-
-
-
-
-
-Much like a garbage collector found in a s
-
-
-
-allocation info on
-disk, littlefs relies on the fact that the blocks in the filesystem is a mirror
-image of the free blocks. Much like a garbage collector found in high-level
-languages, littlefs tries to find unused blocks on demand.
-
-
-
-
-
-
-
-
-
-
-
-
-Figuring out which block can be used next, and indirectly wear leveling, is the
-responsibility of the block allocator. The block allocator in littlefs has a
-very important role as nearly every update involves block allocation.
-
-
-
- in
-littlefs, since
-
-Block allocation, and indirectly wear leveling, 
-
-
-So we now have a filesystem built out of metadata pairs and CTZ skip-lists. A
-key feature of filesystem so far is that all of the data structures are some
-form of copy-on-bounded-writes (COBW), with blocks in the CTZ skip-lists being
-evicted every write, and metadata pairs being evicted after a bounded number
-of writes. 
-
-
-
-the filesystem so far is that all of the data structures are
-some form of copy-on-bounded-writes (COBW), which 
-
-
-on two blocks and CTZ
-skip-lists containing any number of blocks. This leaves an [elephant](https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg)
-of a question. Where are all these blocks coming from?
-
-
-
-
-
-
 
 **-- old below --**
 
@@ -2828,3 +2384,9 @@ That's the little filesystem. Thanks for reading!
 ## Conclusion
 
 And that's littlefs, thanks for reading!
+
+[metadata-cost1]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Bs%7D%7Bd&plus;1%7D
+[metadata-cost2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
+[metadata-cost3]: https://latex.codecogs.com/svg.latex?s%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
+[metadata-cost4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
+
