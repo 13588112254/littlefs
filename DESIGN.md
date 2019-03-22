@@ -501,11 +501,11 @@ giving us an amortized runtime complexity of ![O(1)][O(1)].
 --- <!-- TODO need this bar here? -->
 
 If we look at metadata pairs and linked-lists of metadata pairs at a high
-level, they have fairly nice runtime costs. Assuming ![n][n] metadata pairs, each
-containing ![m][m] metadata entries, the _lookup_ cost for a specific entry has a
-worst case runtime complexity of ![O(nm)][O(nm)]. For _updating_ a specific
-entry, the worst case complexity is ![O(nm^2)][O(nm^2)], with an amortized
-complexity of only ![O(nm)][O(nm)].
+level, they have fairly nice runtime costs. Assuming ![n][n] metadata pairs,
+each containing ![m][m] metadata entries, the _lookup_ cost for a specific
+entry has a worst case runtime complexity of `O(nm)`. For _updating_ a specific
+entry, the worst case complexity is `O(nm²)`, with an amortized complexity of
+only ![O(nm)][O(nm)].
 
 However, splitting at 50% capacity does mean that in the best case our
 metadata pairs will only be 1/2 full. If we include the overhead of the second
