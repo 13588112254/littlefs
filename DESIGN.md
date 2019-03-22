@@ -450,12 +450,12 @@ multiple stages.
 
 There is another complexity the pops up when dealing with small logs. The
 amortized runtime cost of garbage collection is not only dependendent on its
-one time cost (O(n^2) for littlefs), but also depends on how often garbage
-collection occurs.
+one time cost (![O(n^2)][O(n^2)] for littlefs), but also depends on how often
+garbage collection occurs.
 
 Consider two extremes:
 
-1. Log is empty, garbage collection occurs once every n updates
+1. Log is empty, garbage collection occurs once every ![n][n] updates
 2. Log is full, garbage collection occurs **every** update
   
 Clearly we need to be more aggressive than waiting for our metadata pair to
@@ -501,10 +501,11 @@ giving us an amortized runtime complexity of ![O(1)][O(1)].
 --- <!-- TODO need this bar here? -->
 
 If we look at metadata pairs and linked-lists of metadata pairs at a high
-level, they have fairly nice runtime costs. Assuming n metadata pairs, each
-containing m metadata entries, the _lookup_ cost for a specific entry has a
-worst case runtime complexity of O(nm). For _updating_ a specific entry, the
-worst case complexity is O(nm^2), with an amortized complexity of only O(nm).
+level, they have fairly nice runtime costs. Assuming ![n][n] metadata pairs, each
+containing ![m][m] metadata entries, the _lookup_ cost for a specific entry has a
+worst case runtime complexity of ![O(nm)][O(nm)]. For _updating_ a specific
+entry, the worst case complexity is ![O(nm^2)][O(nm^2)], with an amortized
+complexity of only ![O(nm)][O(nm)].
 
 However, splitting at 50% capacity does mean that in the best case our
 metadata pairs will only be 1/2 full. If we include the overhead of the second
@@ -2393,7 +2394,11 @@ And that's littlefs, thanks for reading!
 [metadata-cost4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
 [O(n)]: https://latex.codecogs.com/svg.latex?O%28n%29
 [O(1)]: https://latex.codecogs.com/svg.latex?O%281%29
+[O(n^2)]: https://latex.codecogs.com/svg.latex?O%28n%5E%7B2%7D%29
+[O(nm)]: https://latex.codecogs.com/svg.latex?O%28nm%29
+[O(nm^2)]: https://latex.codecogs.com/svg.latex?O%28nm%5E%7B2%7D%29
 [r]: https://latex.codecogs.com/svg.latex?r
 [d]: https://latex.codecogs.com/svg.latex?d
 [s]: https://latex.codecogs.com/svg.latex?s
 [n]: https://latex.codecogs.com/svg.latex?n
+[m]: https://latex.codecogs.com/svg.latex?m
