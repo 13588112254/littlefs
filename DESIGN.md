@@ -2411,4 +2411,6 @@ And that's littlefs, thanks for reading!
 [n]: https://latex.codecogs.com/svg.latex?n
 [m]: https://latex.codecogs.com/svg.latex?m
 
+[O(nm)]: https://latex.codecogs.com/svg.latex?O%28nm%29
+[O(nm^2)]: https://latex.codecogs.com/svg.latex?O%28nm%5E%7B2%7D%29
 
