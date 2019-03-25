@@ -16,7 +16,7 @@ in the context of microcontrollers. The question was: How would you build a
 filesystem that is resilient to power-loss and flash wear without using
 unbounded memory?
 
-<!-- TODO add some segway? -->
+<!-- TODO add note on how this is design and where to go for spec? -->
 
 ## The problem
 
@@ -30,15 +30,15 @@ Flash itself is an interesting piece of technology with its own quirks and
 nuance. Unlike other forms of storage, writing to flash requires two
 operations: erasing and programming. Programming (setting bits to 0) is
 relatively cheap and can be very granular. Erasing however (setting bits to 1),
-requires an expensive and destructive operation that gives flash its name.
-[Wikipedia](https://en.wikipedia.org/wiki/Flash_memory) has more information
-about how exactly flash works.
+requires an expensive and destructive operation which gives flash its name.
+[Wikipedia](wikipedia-flash-memory) has more information on how exactly flash
+works.
 
-To make things more annoying, it's common for these embedded systems to lose
-power at any time. Usually, microcontroller code is simple and reactive, with
-no concept of a shutdown routine. This presents a big challenge for persistent
-storage, where an unlucky power loss can corrupt the storage and leave a device
-unrecoverable.
+To make the situation more annoying, it's very common for these embedded
+systems to lose power at any time. Usually, microcontroller code is simple and
+reactive, with no concept of a shutdown routine. This presents a big challenge
+for persistent storage, where an unlucky power loss can corrupt the storage and
+leave a device unrecoverable.
 
 This leaves us with three major requirements for an embedded filesystem.
 
@@ -173,12 +173,12 @@ of designs.
 <!-- pic here? -->
 <!-- TODO links -->
 
-1. First we have the non-resilient, block based filesystems, such as FAT and
-   ext2. These are the the earliest filesystem designs and often the most
-   simple. Here storage is divided into blocks, with each file being stored
-   in a collection of blocks. Without modifications, these filesystems are
-   not power-loss resilient, so updating a file is a simple as rewriting the
-   blocks in place.
+1. First we have the non-resilient, block based filesystems, such as [FAT][fat]
+   and [ext2][ext2]. These are the the earliest filesystem designs and often
+   the most simple. Here storage is divided into blocks, with each file being
+   stored in a collection of blocks. Without modifications, these filesystems
+   are not power-loss resilient, so updating a file is a simple as rewriting
+   the blocks in place.
 
    Because of their simplicity, these filesystems are usually both the fastest
    and smallest. However the lack of power resilience is, of course, bad, and
@@ -188,12 +188,12 @@ of designs.
 <!-- pic here? -->
 
 2. In a completely different direction, we have logging filesystems, such as
-   JFFS, YAFFS, and SPIFFS. In a logging filesystem, storage location is not
-   bound to a piece of data, instead the entire storage is used for a circular
-   log which is appended with every change made to the filesystem. Writing
-   appends new changes, while reading requires traversing the log to
-   reconstruct a file. Some logging filesystems cache files to avoid the read
-   cost, but this comes at a tradeoff of RAM.
+   [JFFS][jffs], [YAFFS][yaffs], and [SPIFFS][spiffs]. In a logging filesystem,
+   storage location is not bound to a piece of data, instead the entire storage
+   is used for a circular log which is appended with every change made to the
+   filesystem. Writing appends new changes, while reading requires traversing
+   the log to reconstruct a file. Some logging filesystems cache files to avoid
+   the read cost, but this comes at a tradeoff of RAM.
 
    Logging filesystem are beautifully elegant. With a checksum, we can easily
    detect power-loss and fall back to the previous state by ignoring failed
@@ -204,8 +204,8 @@ of designs.
    process of cleaning up outdated data from the end of the log, I've yet to
    see a pure logging filesystem that does not have one of these two costs:
 
-   1. O(n^2) runtime
-   2. O(n) RAM
+   1. `O(n²)` runtime
+   2. `O(n)` RAM
 
    SPIFFS is a very interesting case here, as it uses the fact that repeated
    programs to NOR flash is both atomic and masking. This is a very neat
@@ -215,9 +215,9 @@ of designs.
 
 3. Perhaps the most common type of filesystem, a journaling filesystem is the
    offspring that happens when you mate a block based filesystem with a logging
-   filesystem. NTFS and ext4 are good examples. Here, we take a normal block
-   based filesystem and add a bounded log where we note every change before
-   it occurs.
+   filesystem. [ext4] and [NTFS][ntfs] are good examples. Here, we take a
+   normal block based filesystem and add a bounded log where we note every
+   change before it occurs.
 
    This sort of filesystem takes the best from both worlds. Performance can be
    as fast as a block based filesystem (though updating the journal does have
@@ -232,12 +232,13 @@ of designs.
 
 <!-- pic here? -->
 
-4. Last but not least we have copy-on-write (COW) filesystems, such as btrfs
-   and ZFS. These are very similar to other block based filesystems, but
-   instead of updating block inplace, all updates are performed by creating
-   a copy with the changes and replacing any references to the old block with
-   our new block. This recursively pushes all of our problems upwards until we
-   reach the root of our filesystem, which is often stored in a very small log.
+4. Last but not least we have copy-on-write (COW) filesystems, such as
+   [btrfs][btrfs] and [ZFS][zfs]. These are very similar to other block based
+   filesystems, but instead of updating block inplace, all updates are
+   performed by creating a copy with the changes and replacing any references
+   to the old block with our new block. This recursively pushes all of our
+   problems upwards until we reach the root of our filesystem, which is often
+   stored in a very small log.
 
    COW filesystems are interesting. They offer very similar performance to
    block based filesystems while managing to pull off atomic updates without
@@ -262,22 +263,21 @@ structures, which perform well, push the atomicity problem upwards.
 
 Can we work around these limitations?
 
-Consider logging. It has either a O(n^2) runtime or O(n) RAM cost. We can't
+Consider logging. It has either a `O(n²)` runtime or `O(n)` RAM cost. We can't
 avoid these costs, _but_ if we put an upper bound on the size we can at least
 prevent the theoretical cost from becoming problem. This relies on the old
 computer science trick where you can reduce any algorithmic complexity to
-O(1) by simply bounding the input.
+`O(1)` by simply bounding the input.
 
 In the case of COW data structures, we can try twisting the definition a bit.
 Lets say that our COW structure doesn't copy after a single write, but instead
 copies after n writes. This doesn't change most COW properties (assuming you
-can write atomically!), but what it does do is prevents the upward motion of
+can write atomically!), but what it does do is prevent the upward motion of
 wear. This sort of copy-on-bounded-writes (CObW) still focuses wear, but at
 each level we divide the propogation of wear by n. With a sufficiently
-large n (> branching factor) wear propogation is no longer a
-problem.
+large n (> branching factor) wear propogation is no longer a problem.
 
-Do you see where this is going? Seperate, logging and COW are imperfect
+Do you see where this is going? Separate, logging and COW are imperfect
 solutions and have weaknesses that limit their usefulness. But if we merge
 the two they can mutually solve each other's limitations.
 
@@ -450,7 +450,7 @@ multiple stages.
 
 There is another complexity the pops up when dealing with small logs. The
 amortized runtime cost of garbage collection is not only dependendent on its
-one time cost (![O(n^2)][O(n^2)] for littlefs), but also depends on how often
+one time cost (`O(n²)` for littlefs), but also depends on how often
 garbage collection occurs.
 
 Consider two extremes:
@@ -470,20 +470,20 @@ this log we get this formula:
 
 <!-- TODO formulas -->
 
-![cost = n + n (s / d+1)][metadata-cost1]
+![cost = n + n (s / d+1)][metadata1]
 
 If we let ![r][r] be the ratio of static space to the size of our log in bytes,
 we find an alternative representation of the number of static and dynamic
 entries:
 
-![s = r (size/n)][metadata-cost2]
+![s = r (size/n)][metadata2]
 
-![d = (1 - r) (size/n)][metadata-cost3]
+![d = (1 - r) (size/n)][metadata3]
 
 Substituting these in for ![d][d] and ![s][s] gives us a nice formula for the
 cost of updating an entry given how full the log is:
 
-![cost = n + n (r (size/n) / ((1-r) (size/n) + 1))][metadata-cost4]
+![cost = n + n (r (size/n) / ((1-r) (size/n) + 1))][metadata4]
 
 Assuming 100 byte entries in a 1 MiB log, we can plot this:
 
@@ -496,16 +496,16 @@ To avoid this exponential growth, instead of waiting for our metadata pair
 to be full, we split the metadata pair once we exceed 50% capacity. We do this
 lazily, waiting until we need to compact before checking if we fit in our 50%
 limit. This limits the overhead of garbage collection to 2x the runtime cost,
-giving us an amortized runtime complexity of ![O(1)][O(1)].
+giving us an amortized runtime complexity of `O(1)`.
 
 --- <!-- TODO need this bar here? -->
 
 If we look at metadata pairs and linked-lists of metadata pairs at a high
-level, they have fairly nice runtime costs. Assuming ![n][n] metadata pairs,
+level, they have fairly nice runtime costs. Assuming _n_ metadata pairs,
 each containing ![m][m] metadata entries, the _lookup_ cost for a specific
-entry has a worst case runtime complexity of `O(nm)`. For _updating_ a specific
-entry, the worst case complexity is `O(nm²)`, with an amortized complexity of
-only ![O(nm)][O(nm)].
+entry has a worst case runtime complexity of O(nm). For _updating_ a specific
+entry, the worst case complexity is _O(nm²)_, with an amortized complexity of
+only [O(nm)][O(nm)]. Blah blah blah blah `O(nm)`.
 
 However, splitting at 50% capacity does mean that in the best case our
 metadata pairs will only be 1/2 full. If we include the overhead of the second
@@ -624,7 +624,7 @@ Exhibit B: A backwards linked-list
 ```
 
 However, a backwards linked-list does have a rather glaring problem.
-Iterating over a file _in order_ has a runtime cost of O(n^2). A quadratic
+Iterating over a file _in order_ has a runtime cost of `O(n²)`. A quadratic
 runtime just to read a file! That's awful.
 
 Fortunately we can do better. Instead of a singly linked list, littlefs
@@ -675,16 +675,16 @@ The path to data block 0 is even faster, requiring only two jumps:
 
 We can find the runtime complexity by looking at the path to any block from
 the block containing the most pointers. Every step along the path divides
-the search space for the block in half, giving us a runtime of O(log n). To
-get _to_ the block with the most pointers, we can perform the same steps
-backwards, which puts the runtime at O(2 log n) = O(log n). An interesting
+the search space for the block in half, giving us a runtime of `O(log n)`.
+To get _to_ the block with the most pointers, we can perform the same steps
+backwards, which puts the runtime at `O(2 log n)` = `O(log n)`. An interesting
 note is that this optimal path occurs naturally if we greedily choose the
 pointer that covers the most distance without passing our target.
 
 So now we have a COW data structure that is cheap to append with a runtime of
-O(1), and can be read with a worst case runtime of O(n log n). Given that this
-runtime is also divided by the amount of data we can store in a block, this
-cost is fairly reasonable.
+`O(1)`, and can be read with a worst case runtime of `O(n log n)`. Given that
+this runtime is also divided by the amount of data we can store in a block,
+this cost is fairly reasonable.
 
 -- <!-- need?-->
 
@@ -741,13 +741,13 @@ w = word width in bits
 n = block index in skip-list  
 N = file size in bytes  
 
-This works quite well, but requires O(n) to compute, which brings the full
-runtime of reading a file up to O(n^2 log n). Fortunately, that summation
+This works quite well, but requires `O(n)` to compute, which brings the full
+runtime of reading a file up to `O(n² log n)`. Fortunately, that summation
 doesn't need to touch the disk, so the practical impact is minimal.
 
 However, despite the integration of a bitwise operation, we can actually reduce
-this equation to a O(1) form.  While browsing the amazing resource that is the
-[On-Line Encyclopedia of Integer Sequences (OEIS)](https://oeis.org/),
+this equation to a `O(1)` form.  While browsing the amazing resource that is
+the [On-Line Encyclopedia of Integer Sequences (OEIS)](https://oeis.org/),
 I managed to find [A001511](https://oeis.org/A001511), which matches the
 iteration of the CTZ instruction, and [A005187](https://oeis.org/A005187),
 which matches its partial summation. Much to my surprise, these both result
@@ -787,16 +787,16 @@ we can avoid this by rearranging the equation a bit:
 ![formulaforoff](https://latex.codecogs.com/svg.latex?%5Cmathit%7Boff%7D%20%3D%20N%20-%20%5Cleft%28B-2%5Cfrac%7Bw%7D%7B8%7D%5Cright%29n%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Ctext%7Bpopcount%7D%28n%29)
 
 Our solution requires quite a bit of math, but computer are very good at math.
-Now we can find both our block index and offset from a size in O(1), letting
+Now we can find both our block index and offset from a size in `O(1)`, letting
 us store CTZ skip-lists with only a pointer and size.
 
 --- <!-- need? -->
 
-CTZ skip-lists give us a COW data structure that is easily traversable in O(n),
-can be appended in O(1), and can be read in O(n log n). All of these operations
-work in a bounded amount of RAM and require only two words of storage overhead
-per block. In combination with metadata pairs, CTZ skip-lists provide power
-resilience and compact storage of data.
+CTZ skip-lists give us a COW data structure that is easily traversable in
+`O(n)`, can be appended in `O(1)`, and can be read in `O(n log n)`. All of
+these operations work in a bounded amount of RAM and require only two words of
+storage overhead per block. In combination with metadata pairs, CTZ skip-lists
+provide power resilience and compact storage of data.
 
 <!-- maybe no? Here is what it might look like to update a file stored with a CTZ skip-list: -->
 
@@ -958,13 +958,13 @@ Exhibit B: A backwards linked-list
 ```
 
 However, a backwards linked-list does come with a rather glaring problem.
-Iterating over a file _in order_ has a runtime cost of O(n^2). Gah! A quadratic
-runtime to just _read_ a file? That's awful. Keep in mind reading files is
-usually the most common filesystem operation.
+Iterating over a file _in order_ has a runtime cost of `O(n²)`. Gah! A
+quadratic runtime to just _read_ a file? That's awful. Keep in mind reading
+files is usually the most common filesystem operation.
 
 To avoid this problem, the littlefs uses a multilayered linked-list. For
-every nth block where n is divisible by 2^x, the block contains a pointer
-to block n-2^x. So each block contains anywhere from 1 to log2(n) pointers
+every `n`th block where `n` is divisible by `2ˣ`, the block contains a pointer
+to block `n-2ˣ`. So each block contains anywhere from `1` to `log²n` pointers
 that skip to various sections of the preceding list. If you're familiar with
 data-structures, you may have recognized that this is a type of deterministic
 skip-list.
@@ -1282,7 +1282,7 @@ alloc = 112     lookahead:                         ffff8000
                 fs blocks: ffffffffffffffffffffffffffff8000
 ```
 
-This lookahead approach has a runtime complexity of O(n^2) to completely scan
+This lookahead approach has a runtime complexity of `O(n²)` to completely scan
 storage, however, bitmaps are surprisingly compact, and in practice only one or
 two passes are usually needed to find free blocks. Additionally, the
 performance of the allocator can be optimized by adjusting the block size or
@@ -1520,7 +1520,7 @@ alloc = 112     lookahead:                         ffff8000
                 fs blocks: ffffffffffffffffffffffffffff8000
 ```
 
-While this lookahead approach still has an asymptotic runtime of O(n^2) to
+While this lookahead approach still has an asymptotic runtime of `O(n²)` to
 scan all of storage, the lookahead reduces the practical runtime to a
 reasonable amount. Bit-vectors are surprisingly compact, given only 16 bytes,
 the lookahead could track 128 blocks. For a 4Mbyte flash chip with 4Kbyte
@@ -1637,8 +1637,8 @@ half-orphan.
 
 <!-- pic here -->
 
-Finding orphans and half-orphans is expensive, requiring a O(n^2) comparison of
-every metadata pair with every directory entry. But the tradeoff is a power
+Finding orphans and half-orphans is expensive, requiring a `O(n²)` comparison
+of every metadata pair with every directory entry. But the tradeoff is a power
 resilient filesystem that works with only a bounded amount of RAM. Fortunately,
 we only need to check for orphans on the first allocation after boot, and a
 read-only littlefs can ignore the threaded linked-list entirely.
@@ -2126,7 +2126,7 @@ v
 
 Now, if we run into a directory entry that has been marked as "moved", one
 of two things is possible. Either the directory entry exists elsewhere in the
-filesystem, or it doesn't. This is a O(n) operation, but only occurs in the
+filesystem, or it doesn't. This is a `O(n)` operation, but only occurs in the
 unlikely case we lost power during a move.
 
 And we can easily fix the "moved" directory entry. Since we're already scanning
@@ -2369,8 +2369,8 @@ So, to summarize:
 3. These metadata pairs can be updated atomically by alternating which
    metadata block is active
 4. Directory blocks contain either references to other directories or files
-5. Files are represented by copy-on-write CTZ skip-lists which support O(1)
-   append and O(n log n) reading
+5. Files are represented by copy-on-write CTZ skip-lists which support `O(1)`
+   append and `O(n log n)` reading
 6. Blocks are allocated by scanning the filesystem for used blocks in a
    fixed-size lookahead region that is stored in a bit-vector
 7. To facilitate scanning the filesystem, all directories are part of a
@@ -2388,17 +2388,27 @@ That's the little filesystem. Thanks for reading!
 
 And that's littlefs, thanks for reading!
 
-[metadata-cost1]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Bs%7D%7Bd&plus;1%7D
-[metadata-cost2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
-[metadata-cost3]: https://latex.codecogs.com/svg.latex?d%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
-[metadata-cost4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
-[O(n)]: https://latex.codecogs.com/svg.latex?O%28n%29
-[O(1)]: https://latex.codecogs.com/svg.latex?O%281%29
-[O(n^2)]: https://latex.codecogs.com/svg.latex?O%28n%5E%7B2%7D%29
-[O(nm)]: https://latex.codecogs.com/svg.latex?O%28nm%29
-[O(nm^2)]: https://latex.codecogs.com/svg.latex?O%28nm%5E%7B2%7D%29
+[wikipedia-flash-memory]: https://en.wikipedia.org/wiki/Flash_memory
+
+[fat]: https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system
+[ext2]: http://e2fsprogs.sourceforge.net/ext2intro.html
+[jffs]: https://www.sourceware.org/jffs2/jffs2-html
+[yaffs]: https://yaffs.net/documents/how-yaffs-works
+[spiffs]: https://github.com/pellepl/spiffs/blob/master/docs/TECH_SPEC
+[ext4]: https://ext4.wiki.kernel.org/index.php/Ext4_Design
+[ntfs]: https://en.wikipedia.org/wiki/NTFS
+[btrfs]: https://btrfs.wiki.kernel.org/index.php/Btrfs_design
+[zfs]: https://en.wikipedia.org/wiki/ZFS
+
+
+[metadata1]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Bs%7D%7Bd&plus;1%7D
+[metadata2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
+[metadata3]: https://latex.codecogs.com/svg.latex?d%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
+[metadata4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
 [r]: https://latex.codecogs.com/svg.latex?r
 [d]: https://latex.codecogs.com/svg.latex?d
 [s]: https://latex.codecogs.com/svg.latex?s
 [n]: https://latex.codecogs.com/svg.latex?n
 [m]: https://latex.codecogs.com/svg.latex?m
+
+
