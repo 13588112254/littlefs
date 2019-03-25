@@ -505,7 +505,7 @@ level, they have fairly nice runtime costs. Assuming _n_ metadata pairs,
 each containing ![m][m] metadata entries, the _lookup_ cost for a specific
 entry has a worst case runtime complexity of O(nm). For _updating_ a specific
 entry, the worst case complexity is _O(nm²)_, with an amortized complexity of
-only [O(nm)][O(nm)]. Blah blah blah blah `O(nm)`.
+only ![O(nm)][O(nm)]. Blah blah blah blah `O(nm)`.
 
 However, splitting at 50% capacity does mean that in the best case our
 metadata pairs will only be 1/2 full. If we include the overhead of the second
