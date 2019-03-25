@@ -21,8 +21,8 @@ unbounded memory?
 ## The problem
 
 The embedded systems littlefs targets are usually 32-bit microcontrollers with
-around 32KiB of RAM and 512KiB of ROM. These are often paired with SPI NOR
-flash chips with about 4MiB of flash storage. These devices are too small for
+around 32 KiB of RAM and 512 KiB of ROM. These are often paired with SPI NOR
+flash chips with about 4 MiB of flash storage. These devices are too small for
 Linux and most existing filesystems, requiring code written specifically with
 size in mind.
 
@@ -64,114 +64,12 @@ This leaves us with three major requirements for an embedded filesystem.
    simple operations, such as traversing the filesystem, become surprisingly
    difficult.
 
-**---------- below is old ---------**
-
-For a bit of backstory, the littlefs was developed with the goal of learning
-more about filesystem design by tackling the relative unsolved problem of
-managing a robust filesystem resilient to power loss on devices
-with limited RAM and ROM.
-
-The embedded systems the littlefs is targeting are usually 32 bit
-microcontrollers with around 32KB of RAM and 512KB of ROM. These are
-often paired with SPI NOR flash chips with about 4MB of flash storage.
-
-Flash itself is a very interesting piece of technology with quite a bit of
-nuance. Unlike most other forms of storage, writing to flash requires two
-operations: erasing and programming. The programming operation is relatively
-cheap, and can be very granular. For NOR flash specifically, byte-level
-programs are quite common. Erasing, however, requires an expensive operation
-that forces the state of large blocks of memory to reset in a destructive
-reaction that gives flash its name. The [Wikipedia entry](https://en.wikipedia.org/wiki/Flash_memory)
-has more information if you are interested in how this works.
-
-This leaves us with an interesting set of limitations that can be simplified
-to three strong requirements:
-
-1. **Power-loss resilient** - This is the main goal of the littlefs and the
-   focus of this project.
-
-   Embedded systems are usually designed without a shutdown routine and a
-   notable lack of user interface for recovery, so filesystems targeting
-   embedded systems must be prepared to lose power at any given time.
-
-   Despite this state of things, there are very few embedded filesystems that
-   handle power loss in a reasonable manner, and most can become corrupted if
-   the user is unlucky enough.
-
-2. **Wear leveling** - Due to the destructive nature of flash, most flash
-   chips have a limited number of erase cycles, usually in the order of around
-   100,000 erases per block for NOR flash. Filesystems that don't take wear
-   into account can easily burn through blocks used to store frequently updated
-   metadata.
-
-   Consider the [FAT filesystem](https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system),
-   which stores a file allocation table (FAT) at a specific offset from the
-   beginning of disk. Every block allocation will update this table, and after
-   100,000 updates, the block will likely go bad, rendering the filesystem
-   unusable even if there are many more erase cycles available on the storage
-   as a whole.
-
-3. **Bounded RAM/ROM** - Even with the design difficulties presented by the
-   previous two limitations, we have already seen several flash filesystems
-   developed on PCs that handle power loss just fine, such as the
-   logging filesystems. However, these filesystems take advantage of the
-   relatively cheap access to RAM, and use some rather... opportunistic...
-   techniques, such as reconstructing the entire directory structure in RAM.
-   These operations make perfect sense when the filesystem's only concern is
-   erase cycles, but the idea is a bit silly on embedded systems.
-
-   To cater to embedded systems, the littlefs has the simple limitation of
-   using only a bounded amount of RAM and ROM. That is, no matter what is
-   written to the filesystem, and no matter how large the underlying storage
-   is, the littlefs will always use the same amount of RAM and ROM. This
-   presents a very unique challenge, and makes presumably simple operations,
-   such as iterating through the directory tree, surprisingly difficult.
-
-## Existing designs?
-
-There are of course, many different existing filesystem. Here is a very rough
-summary of the general ideas behind some of them.
-
-Most of the existing filesystems fall into the one big category of filesystem
-designed in the early days of spinny magnet disks. While there is a vast amount
-of interesting technology and ideas in this area, the nature of spinny magnet
-disks encourage properties, such as grouping writes near each other, that don't
-make as much sense on recent storage types. For instance, on flash, write
-locality is not important and can actually increase wear.
-
-One of the most popular designs for flash filesystems is called the
-[logging filesystem](https://en.wikipedia.org/wiki/Log-structured_file_system).
-The flash filesystems [jffs](https://en.wikipedia.org/wiki/JFFS)
-and [yaffs](https://en.wikipedia.org/wiki/YAFFS) are good examples. In a
-logging filesystem, data is not stored in a data structure on disk, but instead
-the changes to the files are stored on disk. This has several neat advantages,
-such as the fact that the data is written in a cyclic log format and naturally
-wear levels as a side effect. And, with a bit of error detection, the entire
-filesystem can easily be designed to be resilient to power loss. The
-journaling component of most modern day filesystems is actually a reduced
-form of a logging filesystem. However, logging filesystems have a difficulty
-scaling as the size of storage increases. And most filesystems compensate by
-caching large parts of the filesystem in RAM, a strategy that is inappropriate
-for embedded systems.
-
-Another interesting filesystem design technique is that of [copy-on-write (COW)](https://en.wikipedia.org/wiki/Copy-on-write).
-A good example of this is the [btrfs](https://en.wikipedia.org/wiki/Btrfs)
-filesystem. COW filesystems can easily recover from corrupted blocks and have
-natural protection against power loss. However, if they are not designed with
-wear in mind, a COW filesystem could unintentionally wear down the root block
-where the COW data structures are synchronized.
-
-**-- new below --**
-
 ## Existing designs?
 
 So what's already out there? There are, of course, many different filesystems,
 however they often share and borrow feature from each other. If we look at
 power-loss resilience and wear leveling, we can narrow these down to a handful
 of designs.
-
-<!-- pic here? -->
-<!-- TODO links -->
 
 1. First we have the non-resilient, block based filesystems, such as [FAT][fat]
    and [ext2][ext2]. These are the the earliest filesystem designs and often
@@ -180,12 +78,34 @@ of designs.
    are not power-loss resilient, so updating a file is a simple as rewriting
    the blocks in place.
 
+   ```
+                   |
+                   v
+               .--------.
+               |  root  |
+               |        |
+               |        |
+               '--------'
+               .-'    '-.
+              v          v
+         .--------.  .--------.
+         |   A    |  |   B    |
+         |        |  |        |
+         |        |  |        |
+         '--------'  '--------'
+         .-'         .-'    '-.
+        v           v          v
+   .--------.  .--------.  .--------.
+   |   C    |  |   D    |  |   E    |
+   |        |  |        |  |        |
+   |        |  |        |  |        |
+   '--------'  '--------'  '--------'
+   ```
+
    Because of their simplicity, these filesystems are usually both the fastest
    and smallest. However the lack of power resilience is, of course, bad, and
    the binding relationship of storage location and data removes the
    filesystem's ability to manage wear.
-
-<!-- pic here? -->
 
 2. In a completely different direction, we have logging filesystems, such as
    [JFFS][jffs], [YAFFS][yaffs], and [SPIFFS][spiffs]. In a logging filesystem,
@@ -194,6 +114,16 @@ of designs.
    filesystem. Writing appends new changes, while reading requires traversing
    the log to reconstruct a file. Some logging filesystems cache files to avoid
    the read cost, but this comes at a tradeoff of RAM.
+
+   ```
+                                                    |
+                                                    v
+   .--------.--------.--------.--------.--------.--------.--------.
+   |   C    | new B  | new A  |                 |   A    |   B    |
+   |        |        |        |->    unused     |        |        |
+   |        |        |        |                 |        |        |
+   '--------'--------'--------'--------'--------'--------'--------'
+   ```
 
    Logging filesystem are beautifully elegant. With a checksum, we can easily
    detect power-loss and fall back to the previous state by ignoring failed
@@ -204,20 +134,44 @@ of designs.
    process of cleaning up outdated data from the end of the log, I've yet to
    see a pure logging filesystem that does not have one of these two costs:
 
-   1. `O(n²)` runtime
-   2. `O(n)` RAM
+   1. _O(n²)_ runtime
+   2. _O(n)_ RAM
 
    SPIFFS is a very interesting case here, as it uses the fact that repeated
    programs to NOR flash is both atomic and masking. This is a very neat
    solution, however it limits the type of storage you can support.
-
-<!-- pic here? -->
 
 3. Perhaps the most common type of filesystem, a journaling filesystem is the
    offspring that happens when you mate a block based filesystem with a logging
    filesystem. [ext4] and [NTFS][ntfs] are good examples. Here, we take a
    normal block based filesystem and add a bounded log where we note every
    change before it occurs.
+
+   ```
+                                            |
+                   |         journal        v
+                   v        .--------.--------. 
+               .--------.   | C'| D'|     | E'| 
+               |  root  |   |   |   |->   |   |
+               |        |   |   |   |     |   |
+               |        |   '--------'--------'
+               '--------'
+               .-'    '-.
+              v          v
+         .--------.  .--------.
+         |   A    |  |   B    |
+         |        |  |        |
+         |        |  |        |
+         '--------'  '--------'
+         .-'         .-'    '-.
+        v           v          v
+   .--------.  .--------.  .--------.
+   |   C    |  |   D    |  |   E    |
+   |        |  |        |  |        |
+   |        |  |        |  |        |
+   '--------'  '--------'  '--------'
+   ```
+
 
    This sort of filesystem takes the best from both worlds. Performance can be
    as fast as a block based filesystem (though updating the journal does have
@@ -230,8 +184,6 @@ of designs.
    against wear because of the strong relationship between storage location
    and data.
 
-<!-- pic here? -->
-
 4. Last but not least we have copy-on-write (COW) filesystems, such as
    [btrfs][btrfs] and [ZFS][zfs]. These are very similar to other block based
    filesystems, but instead of updating block inplace, all updates are
@@ -239,6 +191,32 @@ of designs.
    to the old block with our new block. This recursively pushes all of our
    problems upwards until we reach the root of our filesystem, which is often
    stored in a very small log.
+
+   ```
+                   |                           |
+                   v                           v
+               .--------.                  .--------.
+               |  root  |                  |new root|
+               |        |        ->        |        |
+               |        |                  |        |
+               '--------'                  '--------'
+               .-'    '-.                    |    '-.
+              |  .-------|------------------'        v
+              v v        v                       .--------.
+         .--------.  .--------.                  | new B  |
+         |   A    |  |   B    |                  |        |
+         |        |  |        |                  |        |
+         |        |  |        |                  '--------'
+         '--------'  '--------'                  .-'    |
+         .-'         .-'    '-.    .------------|-------'
+        |           |          |  |             v
+        v           v          v  v        .--------.
+   .--------.  .--------.  .--------.      | new D  |
+   |   C    |  |   D    |  |   E    |      |        |
+   |        |  |        |  |        |      |        |
+   |        |  |        |  |        |      '--------'
+   '--------'  '--------'  '--------'
+   ```
 
    COW filesystems are interesting. They offer very similar performance to
    block based filesystems while managing to pull off atomic updates without
@@ -263,23 +241,23 @@ structures, which perform well, push the atomicity problem upwards.
 
 Can we work around these limitations?
 
-Consider logging. It has either a `O(n²)` runtime or `O(n)` RAM cost. We can't
+Consider logging. It has either a _O(n²)_ runtime or _O(n)_ RAM cost. We can't
 avoid these costs, _but_ if we put an upper bound on the size we can at least
-prevent the theoretical cost from becoming problem. This relies on the old
-computer science trick where you can reduce any algorithmic complexity to
-`O(1)` by simply bounding the input.
+prevent the theoretical cost from becoming problem. This relies on the super
+secret computer science hack where you can pretend any algorithmic complexity
+is _O(1)_ by bounding the input.
 
 In the case of COW data structures, we can try twisting the definition a bit.
 Lets say that our COW structure doesn't copy after a single write, but instead
-copies after n writes. This doesn't change most COW properties (assuming you
+copies after _n_ writes. This doesn't change most COW properties (assuming you
 can write atomically!), but what it does do is prevent the upward motion of
 wear. This sort of copy-on-bounded-writes (CObW) still focuses wear, but at
-each level we divide the propogation of wear by n. With a sufficiently
-large n (> branching factor) wear propogation is no longer a problem.
+each level we divide the propogation of wear by _n_. With a sufficiently
+large _n_ (> branching factor) wear propogation is no longer a problem.
 
-Do you see where this is going? Separate, logging and COW are imperfect
-solutions and have weaknesses that limit their usefulness. But if we merge
-the two they can mutually solve each other's limitations.
+See where this is going? Separate, logging and COW are imperfect solutions and
+have weaknesses that limit their usefulness. But if we merge the two they can
+mutually solve each other's limitations.
 
 This is the idea behind littlefs. At the sub-block level, littlefs is built
 out of small, two blocks logs that provide atomic updates to metadata anywhere
@@ -291,7 +269,7 @@ that can be evicted on demand.
 There are still some minor issues. Small logs can be expensive in terms of
 storage, in the worst case a small log costs 4x the size of the original data.
 CObW structures require an efficient block allocator since allocation occurs
-every n writes. And there is still the challenge of keeping the RAM usuage
+every _n_ writes. And there is still the challenge of keeping the RAM usuage
 constant.
 
 
@@ -450,12 +428,12 @@ multiple stages.
 
 There is another complexity the pops up when dealing with small logs. The
 amortized runtime cost of garbage collection is not only dependendent on its
-one time cost (`O(n²)` for littlefs), but also depends on how often
+one time cost (_O(n²)_ for littlefs), but also depends on how often
 garbage collection occurs.
 
 Consider two extremes:
 
-1. Log is empty, garbage collection occurs once every ![n][n] updates
+1. Log is empty, garbage collection occurs once every _n_ updates
 2. Log is full, garbage collection occurs **every** update
   
 Clearly we need to be more aggressive than waiting for our metadata pair to
@@ -468,22 +446,20 @@ collection), and ![s][s] static entries (entries that need to be copied during
 garbage collection). If we look at the amortized runtime complexity of updating
 this log we get this formula:
 
-<!-- TODO formulas -->
-
-![cost = n + n (s / d+1)][metadata1]
+![cost = n + n (s / d+1)][metadata-formula1]
 
 If we let ![r][r] be the ratio of static space to the size of our log in bytes,
 we find an alternative representation of the number of static and dynamic
 entries:
 
-![s = r (size/n)][metadata2]
+![s = r (size/n)][metadata-formula2]
 
-![d = (1 - r) (size/n)][metadata3]
+![d = (1 - r) (size/n)][metadata-formula3]
 
 Substituting these in for ![d][d] and ![s][s] gives us a nice formula for the
 cost of updating an entry given how full the log is:
 
-![cost = n + n (r (size/n) / ((1-r) (size/n) + 1))][metadata4]
+![cost = n + n (r (size/n) / ((1-r) (size/n) + 1))][metadata-formula4]
 
 Assuming 100 byte entries in a 1 MiB log, we can plot this:
 
@@ -496,16 +472,16 @@ To avoid this exponential growth, instead of waiting for our metadata pair
 to be full, we split the metadata pair once we exceed 50% capacity. We do this
 lazily, waiting until we need to compact before checking if we fit in our 50%
 limit. This limits the overhead of garbage collection to 2x the runtime cost,
-giving us an amortized runtime complexity of `O(1)`.
+giving us an amortized runtime complexity of _O(1)_.
 
 --- <!-- TODO need this bar here? -->
 
 If we look at metadata pairs and linked-lists of metadata pairs at a high
 level, they have fairly nice runtime costs. Assuming _n_ metadata pairs,
-each containing ![m][m] metadata entries, the _lookup_ cost for a specific
-entry has a worst case runtime complexity of O(nm). For _updating_ a specific
+each containing _m_ metadata entries, the _lookup_ cost for a specific
+entry has a worst case runtime complexity of _O(nm)_. For _updating_ a specific
 entry, the worst case complexity is _O(nm²)_, with an amortized complexity of
-only ![O(nm)][O(nm)]. Blah blah blah blah `O(nm)`.
+only _O(nm)_.
 
 However, splitting at 50% capacity does mean that in the best case our
 metadata pairs will only be 1/2 full. If we include the overhead of the second
@@ -2401,10 +2377,10 @@ And that's littlefs, thanks for reading!
 [zfs]: https://en.wikipedia.org/wiki/ZFS
 
 
-[metadata1]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Bs%7D%7Bd&plus;1%7D
-[metadata2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
-[metadata3]: https://latex.codecogs.com/svg.latex?d%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
-[metadata4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
+[metadata-formula1]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Bs%7D%7Bd&plus;1%7D
+[metadata-formula2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
+[metadata-formula3]: https://latex.codecogs.com/svg.latex?d%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
+[metadata-formula4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
 [r]: https://latex.codecogs.com/svg.latex?r
 [d]: https://latex.codecogs.com/svg.latex?d
 [s]: https://latex.codecogs.com/svg.latex?s
