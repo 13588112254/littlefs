@@ -1275,10 +1275,10 @@ however the runtime would be abhorrent. We need to somehow collect multiple
 blocks each traversal.
 
 Looking at existing designs, some PC filesystems that use a similar "drop it on
-the floor" strategy actually store a bitmap of the entire storage in RAM. This
-works well because bitmaps are surprisingly compact. We can't use the same
-strategy here, as it violates our constant RAM requirement, but we may be able
-to modify the idea into a workable solution.
+the floor" strategy actually store a bitmap of the entire storage in
+[RAM][ram]. This works well because bitmaps are surprisingly compact. We can't
+use the same strategy here, as it violates our constant RAM requirement, but we
+may be able to modify the idea into a workable solution.
 
 The block allocator in littlefs is a compromise between a disk-sized bitmap and
 a brute force traversal. Instead of a bitmap the size of storage, we keep track
@@ -2474,4 +2474,5 @@ And that's littlefs, thanks for reading!
 
 [cow]: https://upload.wikimedia.org/wikipedia/commons/0/0c/Cow_female_black_white.jpg
 [elephant]: https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg
+[ram]: https://upload.wikimedia.org/wikipedia/commons/9/97/New_Mexico_Bighorn_Sheep.JPG
 
