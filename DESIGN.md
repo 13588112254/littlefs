@@ -31,7 +31,7 @@ nuance. Unlike other forms of storage, writing to flash requires two
 operations: erasing and programming. Programming (setting bits to 0) is
 relatively cheap and can be very granular. Erasing however (setting bits to 1),
 requires an expensive and destructive operation which gives flash its name.
-[Wikipedia](wikipedia-flash-memory) has more information on how exactly flash
+[Wikipedia][wikipedia-flash-memory] has more information on how exactly flash
 works.
 
 To make the situation more annoying, it's very common for these embedded
@@ -247,7 +247,7 @@ copies after _n_ writes. This doesn't change most COW properties (assuming you
 can write atomically!), but what it does do is prevent the upward motion of
 wear. This sort of copy-on-bounded-writes (CObW) still focuses wear, but at
 each level we divide the propogation of wear by _n_. With a sufficiently
-large _n_ (> branching factor) wear propogation is no longer a problem.
+large _n_ (&gt; branching factor) wear propogation is no longer a problem.
 
 See where this is going? Separate, logging and COW are imperfect solutions and
 have weaknesses that limit their usefulness. But if we merge the two they can
@@ -259,34 +259,34 @@ on the filesystem. At the super-block level, littlefs is a COW tree of blocks
 that can be evicted on demand.
 
 ```
-                      root
-                     .--------.--------.
-                     | A'| B'|         |
-                     |   |   |->       |
-                     |   |   |         |
-                     '--------'--------'
-                  .----'   '--------------.
-         A       v                 B       v
-        .--------.--------.       .--------.--------. 
-        | C'| D'|         |       | E'|new|         | 
-        |   |   |->       |       |   | E'|->       |
-        |   |   |         |       |   |   |         |
-        '--------'--------'       '--------'--------'
-        .-'   '--.                  |   '------------------.
-       v          v              .-'                        v
-  .--------.  .--------.        v                       .--------.
-  |   C    |  |   D    |   .--------.       write       | new E  |
-  |        |  |        |   |   E    |        ==>        |        |
-  |        |  |        |   |        |                   |        |
-  '--------'  '--------'   |        |                   '--------'
-                           '--------'                   .-'    |
-                           .-'    '-.    .-------------|------'
-                          v          v  v              v
-                     .--------.  .--------.       .--------.
-                     |   F    |  |   G    |       | new F  |
-                     |        |  |        |       |        |
-                     |        |  |        |       |        |
-                     '--------'  '--------'       '--------'
+                    root
+                   .--------.--------.
+                   | A'| B'|         |
+                   |   |   |->       |
+                   |   |   |         |
+                   '--------'--------'
+                .----'   '--------------.
+       A       v                 B       v
+      .--------.--------.       .--------.--------. 
+      | C'| D'|         |       | E'|new|         | 
+      |   |   |->       |       |   | E'|->       |
+      |   |   |         |       |   |   |         |
+      '--------'--------'       '--------'--------'
+      .-'   '--.                  |   '------------------.
+     v          v              .-'                        v
+.--------.  .--------.        v                       .--------.
+|   C    |  |   D    |   .--------.       write       | new E  |
+|        |  |        |   |   E    |        ==>        |        |
+|        |  |        |   |        |                   |        |
+'--------'  '--------'   |        |                   '--------'
+                         '--------'                   .-'    |
+                         .-'    '-.    .-------------|------'
+                        v          v  v              v
+                   .--------.  .--------.       .--------.
+                   |   F    |  |   G    |       | new F  |
+                   |        |  |        |       |        |
+                   |        |  |        |       |        |
+                   '--------'  '--------'       '--------'
 ```
 
 There are still some minor issues. Small logs can be expensive in terms of
@@ -388,6 +388,9 @@ also gives us a rough idea of how many erases have occured on the block.
 
 --- <!-- picture of metadata pair tree? -->
 
+```
+```
+
 So how do atomically update our metadata pairs? Atomicity (a type of
 power-loss resilience) requires two parts: redundancy and error detection.
 Error detection can be provided with a checksum, and in littlefs's case we
@@ -400,7 +403,262 @@ multiple stages.
    an erase), we still have the original entries if we lose power during the
    append.
 
-   <!-- pic -->
+   ```
+                                    commit A
+   .----------------.----------------.    .----------------.----------------.
+   |  revision: 0   |  revision: 1   | => |  revision: 0   |  revision: 1   |
+   |----------------|----------------|    |----------------|----------------|
+   |                |       |        |    |                |       A        |
+   |                .       v        .    |                .----------------.
+   |                |                |    |                |      CRC       |
+   |                |                |    |                |----------------|
+   |                |                |    |                |       |        |
+   |                .                .    |                .       v        .
+   |                |                |    |                |                |
+   |                |                |    |                |                |
+   |                |                |    |                |                |
+   |                |                |    |                |                |
+   '----------------'----------------'    '----------------'----------------'
+
+                                  commit B and A'
+   .----------------.----------------.    .----------------.----------------.
+   |  revision: 0   |  revision: 0   | => |  revision: 0   |  revision: 1   |
+   |----------------|----------------|    |----------------|----------------|
+   |        A       |                |    |                |        A       |
+   |----------------.                .    |                .----------------.
+   |       CRC      |                |    |                |       CRC      |
+   |----------------|                |    |                |----------------|
+   |        |       |                |    |                |        B       |
+   |        v       .                .    |                .----------------.
+   |                |                |    |                |        A'      |
+   |                |                |    |                |----------------|
+   |                |                |    |                |       CRC      |
+   |                |                |    |                |----------------|
+   '----------------'----------------'    '----------------'----------------'
+
+                           commit B', need to compact
+   .----------------.----------------.    .----------------.----------------.
+   |  revision: 0   |  revision: 1   | => |  revision: 2   |  revision: 1   |
+   |----------------|----------------|    |----------------|----------------|
+   |                |       A        |    |       A'       |       A        |
+   |                .----------------.    |----------------.----------------.
+   |                |      CRC       |    |       B'       |      CRC       |
+   |                |----------------|    |----------------|----------------|
+   |                |       B        |    |      CRC       |       B        |
+   |                .----------------.    |----------------.----------------.
+   |                |       A'       |    |       |        |       A'       |
+   |                |----------------|    |       v        |----------------|
+   |                |      CRC       |    |                |      CRC       |
+   |                |----------------|    |                |----------------|
+   '----------------'----------------'    '----------------'----------------'
+
+                         commit C and D, need to split
+   .----------------.----------------.    .----------------.----------------.
+   |  revision: 2   |  revision: 1   | => |  revision: 2   |  revision: 3   |
+   |----------------|----------------|    |----------------|----------------|
+   |       A'       |       A        |    |       A'       |       A'       |
+   |----------------|----------------|    |----------------|----------------|
+   |       B'       |      CRC       |    |       B'       |       B'       |
+   |----------------|----------------|    |----------------|----------------|
+   |      CRC       |       B        |    |      CRC       |      tail    ----.
+   |----------------|----------------|    |----------------|----------------| |
+   |       |        |       A'       |    |                |      CRC       | |
+   |       v        |----------------|    |                |----------------| |
+   |                |      CRC       |    |                |       |        | |
+   |                |----------------|    |                |       v        | |
+   '----------------'----------------'    '----------------'----------------' |
+                                                                              |
+                                          .----------------.----------------. |
+                                          |  revision: 0   |  revision: 1   |<'
+                                          |----------------|----------------|
+                                          |                |       C        |
+                                          |                |----------------|
+                                          |                |       D        |
+                                          |                |----------------|
+                                          |                |      CRC       |
+                                          |                |----------------|
+                                          |                |       |        |
+                                          |                |       v        |
+                                          |                |                |
+                                          |                |                |
+                                          '----------------'----------------'
+
+   .----------------.----------------.    .----------------.----------------.
+   |  revision: 2   |  revision: 1   | => |  revision: 2   |  revision: 3   |
+   |----------------|----------------|    |----------------|----------------|
+   |       A'       |       A        |    |       A'       |       A'       |
+   |----------------|----------------|    |----------------|----------------|
+   |       B'       |      CRC       |    |       B'       |       B'       |
+   |----------------|----------------|    |----------------|----------------|
+   |      CRC       |       B        |    |      tail ------------------------.
+   |----------------|----------------|    |----------------|----------------| |
+   |       |        |       A'       |    |      CRC       |                | |
+   |       v        |----------------|    |----------------|                | |
+   |                |      CRC       |    |       |        |                | |
+   |                |----------------|    |       v        |                | |
+   '----------------'----------------'    '----------------'----------------' |
+                                                                              |
+                                          .----------------.----------------. |
+                                          |  revision: 0   |  revision: 1   |<'
+                                          |----------------|----------------|
+                                          |                |       C        |
+                                          |                |----------------|
+                                          |                |       D        |
+                                          |                |----------------|
+                                          |                |      CRC       |
+                                          |                |----------------|
+                                          |                |       |        |
+                                          |                |       v        |
+                                          |                |                |
+                                          |                |                |
+                                          '----------------'----------------'
+
+   .----------------.----------------.    .----------------.----------------.
+   |  revision: 2   |  revision: 1   | => |  revision: 2   |  revision: 3   |
+   |----------------|----------------|    |----------------|----------------|
+   |       A'       |       A        |    |       A'       |       A'       |
+   |----------------|----------------|    |----------------|----------------|
+   |       B'       |      CRC       |    |       B'       |       B'       |
+   |----------------|----------------|    |----------------|----------------|
+   |      CRC       |       B        |  .---     tail      |                |
+   |----------------|----------------|  | |----------------|----------------|  
+   |       |        |       A'       |  | |      CRC       |                |  
+   |       v        |----------------|  | |----------------|                |  
+   |                |      CRC       |  | |       |        |                |  
+   |                |----------------|  | |       v        |                |  
+   '----------------'----------------'  | '----------------'----------------'  
+                                        |                 
+                                        | .----------------.----------------.
+                                        '>|  revision: 0   |  revision: 1   |
+                                          |----------------|----------------|
+                                          |                |       C        |
+                                          |                |----------------|
+                                          |                |       D        |
+                                          |                |----------------|
+                                          |                |      CRC       |
+                                          |                |----------------|
+                                          |                |       |        |
+                                          |                |       v        |
+                                          |                |                |
+                                          |                |                |
+                                          '----------------'----------------'
+
+
+
+
+   .----------------.----------------.    .----------------.----------------.
+   | revision: 12   | revision: 11   | => | revision: 12   | revision: 11   |
+   |----------------|----------------|    |----------------|----------------|
+   |       A        |                |    |       A        |                |
+   |----------------.                .    |----------------.                .
+   |      CRC       |                |    |      CRC       |                |
+   |----------------|                |    |----------------|                |
+   |       |        |                |    |       |        |                |
+   |       v        .                .    |       v        .                .
+   |                |                |    |                |                |
+   |                |                |    |                |                |
+   |                |                |    |                |                |
+   '----------------'----------------'    '----------------'----------------'
+   .----------------.----------------.    .----------------.----------------.
+   | revision: 12   | revision: 11   | => | revision: 12   | revision: 11   |
+   |----------------|----------------|    |----------------|----------------|
+   |       A        |                |    |       A        |                |
+   |----------------.                .    |----------------.                .
+   |      CRC       |                |    |      CRC       |                |
+   |----------------|                |    |----------------|                |
+   |       |        |                |    |       |        |                |
+   |       v        .                .    |       v        .                .
+   |                |                |    |                |                |
+   |                |                |    |                |                |
+   |                |                |    |                |                |
+   '----------------'----------------'    '----------------'----------------'
+
+
+
+
+
+   .----------------.----------------.    .----------------.----------------.
+   | revision: 12   | revision: 11   | => | revision: 12   | revision: 11   |
+   |----------------|----------------|    |----------------|----------------|
+   |       A        |                |    |       A        |                |
+   |----------------.                .    |----------------.                .
+   |      CRC       |                |    |      CRC       |                |
+   |----------------|                |    |----------------|                |
+   |       |        |                |    |       |        |                |
+   |       v        .                .    |       v        .                .
+   |                |                |    |                |                |
+   |                |                |    |                |                |
+   |                |                |    |                |                |
+   '----------------'----------------'    '----------------'----------------'
+
+
+   .--------.--------.
+   | revision count  |
+   |-----------------|
+   |        A        |
+   .-----------------.
+   |       CRC       |
+   |-----------------|
+   |        |        |
+   '--------v--------'
+   |                 |
+   |                 |
+   |                 |
+   '--------'--------'
+   |                 |
+   |                 |
+   |                 |
+   '--------'--------'
+
+
+   .---------------.---------------. => .-----------------.-----------------.
+   | revision: 12  | revision: 11  | => | revision count  | revision count  |
+   |---------------|---------------| => |-----------------|-----------------|
+   |       A       |               | => |        A        |        A        |
+   |---------------.               . => |-----------------.-----------------.
+   |      CRC      |               | => |       CRC       |       CRC       |
+   |---------------|               | => |-----------------|-----------------|
+   |       |       |               | => |        |        |        |        |
+   |       v       .               . => |        v        .        v        .
+   |               |               | => |                 |                 |
+   |               |               | => |                 |                 |
+   |               |               | => |                 |                 |
+   '---------------'---------------' => '-----------------'-----------------'
+
+   .---------------.---------------. => .-----------------.-----------------.
+   | revision: 12  | revision: 11  | => | revision count  | revision count  |
+   |---------------|---------------| => |-----------------|-----------------|
+   |       A       |               | => |        A        |        A        |
+   |---------------.               . => |-----------------.-----------------.
+   |      CRC      |               | => |       CRC       |       CRC       |
+   |---------------|               | => |-----------------|-----------------|
+   |       A       |               | => |        |        |        |        |
+   |---------------.               . => |        v        .        v        .
+   |       B       |               | => |                 |                 |
+   |---------------|               | => |                 |                 |
+   |      CRC      |               | => |                 |                 |
+   '---------------'---------------' => '-----------------'-----------------'
+
+
+
+   .-----------------.-----------------.  .-----------------.-----------------.
+   | revision count  | revision count  |.>| revision count  | revision count  |
+   |-----------------|-----------------|| |-----------------|-----------------|
+   |        A        |        A      ---' |        A        |        A        |
+   |-----------------.-----------------|  |-----------------.-----------------.
+   |       CRC       |       CRC       |  |       CRC       |       CRC       |
+   |-----------------|-----------------|  |-----------------|-----------------|
+   |        |        |        |        |  |        |        |        |        |
+   |        v        .        v        .  |        v        .        v        .
+   |                 |                 |  |                 |                 |
+   |                 |                 |  |                 |                 |
+   |                 |                 |  |                 |                 |
+   |                 .                 .  |                 .                 .
+   |                 |                 |  |                 |                 |
+   |                 |                 |  |                 |                 |
+   |                 |                 |  |                 |                 |
+   '-----------------'-----------------'  '-----------------'-----------------'
+   ```
    
    Note that littlefs doesn't maintain a checksum for each entry. Many logging
    filesystems do this, but it limits what you can update in a single atomic
@@ -573,7 +831,7 @@ rest of the filesystem is built on top of these atomic updates.
 
 Metadata pairs provide efficient atomic updates but unfortunately have a large
 storage cost. But we can work around this storage cost by only using the
-metadata pairs to store references to more dense, copy-on-write ([COW](https://upload.wikimedia.org/wikipedia/commons/0/0c/Cow_female_black_white.jpg])
+metadata pairs to store references to more dense, copy-on-write ([COW][cow])
 data structures.
 
 Copy-on-write (COW) data structures, also called functional data structures,
@@ -1207,13 +1465,13 @@ So we now have the framework for an atomic, wear leveling filesystem. Small two
 block metadata pairs provide atomic updates, while CTZ skip-lists provide
 compact storage of data in COW blocks.
 
-But this raises an [elephant]((https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg)
-of a question. Where do all these blocks come from?
+But now we need to look at the [elephant][elephant] in the room. Where do all
+these blocks come from?
 
 Deciding which block to use next is the responsibility of the block allocator.
-In filesystem design, block allocation is often overlooked, but in a COW
-filesystem its role becomes much more important as it is needed for nearly
-every write to the filesystem.
+In filesystem design, block allocation is often a second-class citizen, but in
+a COW filesystem its role becomes much more important as it is needed for
+nearly every write to the filesystem.
 
 Normally, block allocation involves some sort of free list or bitmap stored on
 the filesystem that is updated with free blocks. However, with power
@@ -1227,7 +1485,7 @@ the free blocks on the disk. The block allocator operates much like a garbage
 collector in a scripting language, scanning for unused blocks on demand.
 
 While this approach may sound complicated, the decision to not maintain a free
-list greatly simplifies the overall design of littlefs. Unlike scripting
+list greatly simplifies the overall design of littlefs. Unlike programming
 languages, there are only a handful of data structures we need to traverse.
 And block deallocation, which occurs nearly as often as block allocation,
 is simply a noop. This "drop it on the floor" strategy greatly reduces the
@@ -1256,8 +1514,8 @@ buffer. Each scan we use an increasing offset, circling the storage as blocks
 are allocated.
 
 Here's what it might look like to allocate 4 blocks on a decently busy
-filesystem with a 32bit lookahead and a total of 128 blocks (512Kbytes
-of storage if blocks are 4Kbyte):
+filesystem with a 32 bit lookahead and a total of 128 blocks (512 KiB
+of storage if blocks are 4 KiB):
 ```
 boot...         lookahead:
                 fs blocks: fffff9fffffffffeffffffffffff0000
@@ -1281,7 +1539,7 @@ alloc = 112     lookahead:                         ffff8000
                 fs blocks: ffffffffffffffffffffffffffff8000
 ```
 
-This lookahead approach has a runtime complexity of `O(n²)` to completely scan
+This lookahead approach has a runtime complexity of _O(n²)_ to completely scan
 storage, however, bitmaps are surprisingly compact, and in practice only one or
 two passes are usually needed to find free blocks. Additionally, the
 performance of the allocator can be optimized by adjusting the block size or
@@ -1548,7 +1806,7 @@ embedded systems. Compared to PCs, _all_ data in an embedded system is small.
 
 Consider a small 4-byte file. With a two block metadata-pair and one block for
 the CTZ skip-list, we find ourselves using a full 3 blocks. On most NOR flash
-with 4KiB blocks, this is 12KiB of overhead. A silly 3072x increase.
+with 4 KiB blocks, this is 12 KiB of overhead. A ridiculous 3072x increase.
 
 <!-- pic here? -->
 
@@ -2413,3 +2671,5 @@ And that's littlefs, thanks for reading!
 [O(nm)]: https://latex.codecogs.com/svg.latex?O%28nm%29
 [O(nm^2)]: https://latex.codecogs.com/svg.latex?O%28nm%5E%7B2%7D%29
 
+[cow]: https://upload.wikimedia.org/wikipedia/commons/0/0c/Cow_female_black_white.jpg
+[elephant]: https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg
