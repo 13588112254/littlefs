@@ -803,22 +803,23 @@ equation for file size:
 ![N = Bn - (w/8)(2n-popcount(n))][ctz-formula5]
 
 Unfortunately, the popcount function is non-injective, so we can't solve this
-equation for our index. But what we can do is solve for an n' index that is
-greater than n with error bounded by the range of the popcount function. We can
-repeatedly substitute n' into the original equation until the error is smaller
-than our integer resolution. As it turns out, we only need to perform this
-substitution once, which gives us this formula for our index:
+equation for our index. But what we can do is solve for an ![n'][n'] index that
+is greater than ![n][n] with error bounded by the range of the popcount
+function. We can repeatedly substitute ![n'][n'] into the original equation
+until the error is smaller than our integer resolution. As it turns out, we
+only need to perform this substitution once, which gives us this formula for
+our index:
 
 ![n = floor((N-(w/8)popcount(N/(B-2w/8))) / (B-2w/8))][ctz-formula6]
 
-Now that we have our index n, we can just plug it back into the above equation
-to find the offset. We run into a bit of a problem with integer overflow, but
-we can avoid this by rearranging the equation a bit:
+Now that we have our index ![n][n], we can just plug it back into the above
+equation to find the offset. We run into a bit of a problem with integer
+overflow, but we can avoid this by rearranging the equation a bit:
 
 ![off = N - (B-2w/8)n - (w/8)popcount(n)][ctz-formula7]
 
 Our solution requires quite a bit of math, but computer are very good at math.
-Now we can find both our block index and offset from a size in `O(1)`, letting
+Now we can find both our block index and offset from a size in _O(1)_, letting
 us store CTZ skip-lists with only a pointer and size.
 
 --- <!-- need? -->
@@ -2466,15 +2467,11 @@ And that's littlefs, thanks for reading!
 
 [ctz(x)]: https://latex.codecogs.com/svg.latex?%5Ctext%7Bctz%7D%28x%29
 [popcount(x)]: https://latex.codecogs.com/svg.latex?%5Ctext%7Bpopcount%7D%28x%29
+[n']: https://latex.codecogs.com/svg.latex?n%27
 
 [O(nm)]: https://latex.codecogs.com/svg.latex?O%28nm%29
 [O(nm^2)]: https://latex.codecogs.com/svg.latex?O%28nm%5E%7B2%7D%29
 
 [cow]: https://upload.wikimedia.org/wikipedia/commons/0/0c/Cow_female_black_white.jpg
 [elephant]: https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg
-
-[2^x]: https://latex.codecogs.com/svg.latex?2%5Ex
-[n-2^x]: https://latex.codecogs.com/svg.latex?n-2%5Ex
-[log2(n)]: https://latex.codecogs.com/svg.latex?%5Clog_2n
-[1]: https://latex.codecogs.com/svg.latex?1
 
