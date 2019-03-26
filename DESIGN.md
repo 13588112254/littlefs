@@ -676,10 +676,10 @@ the most common type of skip-list, littlefs's skip-lists are strictly
 deterministic built around some interesting properties of the
 count-trailing-zeros (CTZ) instruction.
 
-The rules CTZ skip-lists follow are that for every _n_&#8203;th block where _n_
-is divisible by _2ˣ_, that block contains a pointer to block _n-2ˣ_. This means
-that each block contains anywhere from _1_ to _log₂n_ pointers that skip to
-different preceding elements of the skip-list.
+The rules CTZ skip-lists follow are that for every _n_&zwj;th block where _n_
+is divisible by _2&#739;_, that block contains a pointer to block _n-2&#739;_.
+This means that each block contains anywhere from _1_ to _log&#8322;n_ pointers
+that skip to different preceding elements of the skip-list.
 
 The name comes from heavy use of the [count trailing zeros (CTZ)](https://en.wikipedia.org/wiki/Count_trailing_zeros)
 instruction, which lets us calculate the power-of-two factors efficiently.
