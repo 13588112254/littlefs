@@ -31,8 +31,7 @@ nuance. Unlike other forms of storage, writing to flash requires two
 operations: erasing and programming. Programming (setting bits to 0) is
 relatively cheap and can be very granular. Erasing however (setting bits to 1),
 requires an expensive and destructive operation which gives flash its name.
-[Wikipedia][wikipedia-flash-memory] has more information on how exactly flash
-works.
+[Wikipedia][wikipedia-flash] has more information on how exactly flash works.
 
 To make the situation more annoying, it's very common for these embedded
 systems to lose power at any time. Usually, microcontroller code is simple and
@@ -131,7 +130,7 @@ of designs.
    process of cleaning up outdated data from the end of the log, I've yet to
    see a pure logging filesystem that does not have one of these two costs:
 
-   1. _O(n²)_ runtime
+   1. _O(n&sup2;)_ runtime
    2. _O(n)_ RAM
 
    SPIFFS is a very interesting case here, as it uses the fact that repeated
@@ -140,7 +139,7 @@ of designs.
 
 3. Perhaps the most common type of filesystem, a journaling filesystem is the
    offspring that happens when you mate a block based filesystem with a logging
-   filesystem. [ext4] and [NTFS][ntfs] are good examples. Here, we take a
+   filesystem. [ext4][ext4] and [NTFS][ntfs] are good examples. Here, we take a
    normal block based filesystem and add a bounded log where we note every
    change before it occurs.
 
@@ -235,11 +234,11 @@ structures, which perform well, push the atomicity problem upwards.
 
 Can we work around these limitations?
 
-Consider logging. It has either a _O(n²)_ runtime or _O(n)_ RAM cost. We can't
-avoid these costs, _but_ if we put an upper bound on the size we can at least
-prevent the theoretical cost from becoming problem. This relies on the super
-secret computer science hack where you can pretend any algorithmic complexity
-is _O(1)_ by bounding the input.
+Consider logging. It has either a _O(n&sup2;)_ runtime or _O(n)_ RAM cost. We
+can't avoid these costs, _but_ if we put an upper bound on the size we can at
+least prevent the theoretical cost from becoming problem. This relies on the
+super secret computer science hack where you can pretend any algorithmic
+complexity is _O(1)_ by bounding the input.
 
 In the case of COW data structures, we can try twisting the definition a bit.
 Lets say that our COW structure doesn't copy after a single write, but instead
@@ -313,47 +312,34 @@ per allocation, the allocator provides dynamic wear leveling over the entire
 filesystem.
 
 ```
-            .--------.                                      \
-            |root dir|-.                                    |
-            | pair 0 | |                                    |
-   .--------|        |-'                                    |
-   |        '--------'                                      |
-   |        .-'    '-------------------------.              |
-   |       v                                  v             +- metadata
-   |  .--------.        .--------.        .--------.        |
-   '->| dir A  |------->| dir A  |------->| dir B  |        |
-      | pair 0 |        | pair 1 |        | pair 0 |        |
-      |        |        |        |        |        |        |
-      '--------'        '--------'        '--------'        |
-      .-'    '-.            |             .-'    '-.        /
-     v          v           v            v          v
-.--------.  .--------.  .--------.  .--------.  .--------.  \
-| file C |  | file D |  | file E |  | file F |  | file G |  |
-| blck 0 |  | blck 0 |  | blck 0 |  | blck 0 |  | blck 0 |  |
-|        |  |        |  |        |  |        |  |        |  |
-'--------'  '--------'  '--------'  '--------'  '--------'  |
-    |                      | |          |                   |
-    v                      v |          v                   |
-.--------.              .--------.  .--------.              |
-| file C |              | file E |  | file F |              |
-| blck 0 |              | blck 0 |  | blck 0 |              +- file data
-|        |              |        |  |        |              |
-'--------'              '--------'  '--------'              |
-                           | |                              |
-                           v v                              |
-                        .--------.                          |
-                        | file E |                          |
-                        | blck 0 |                          |
-                        |        |                          |
-                        '--------'                          /
-
-    ^                                               |       \
-    | block allocator                               v       |
-.--------.  .--------.  .--------.  .--------.  .--------.  |
-|        |  |        |  |        |  |        |  |        |  +- free blocks
-|        |<-|        |<-|        |<-|        |<-|        |  |
-|        |  |        |  |        |  |        |  |        |  |
-'--------'  '--------'  '--------'  '--------'  '--------'  /
+                    root
+                   .--------.--------.
+                   | A'| B'|         |
+                   |   |   |->       |
+                   |   |   |         |
+                   '--------'--------'
+                .----'   '--------------.
+       A       v                 B       v
+      .--------.--------.       .--------.--------.
+      | C'| D'|         |       | E'|new|         |
+      |   |   |->       |       |   | E'|->       |
+      |   |   |         |       |   |   |         |
+      '--------'--------'       '--------'--------'
+      .-'   '--.                  |   '------------------.
+     v          v              .-'                        v
+.--------.  .--------.        v                       .--------.
+|   C    |  |   D    |   .--------.       write       | new E  |
+|        |  |        |   |   E    |        ==>        |        |
+|        |  |        |   |        |                   |        |
+'--------'  '--------'   |        |                   '--------'
+                         '--------'                   .-'    |
+                         .-'    '-.    .-------------|------'
+                        v          v  v              v
+                   .--------.  .--------.       .--------.
+                   |   F    |  |   G    |       | new F  |
+                   |        |  |        |       |        |
+                   |        |  |        |       |        |
+                   '--------'  '--------'       '--------'
 ```
 
 The key to making littlefs efficient is the implementation of these components.
@@ -387,24 +373,30 @@ avoiding problems with integer overflow). Conventiently, this revision count
 also gives us a rough idea of how many erases have occured on the block.
 
 ```
-metadata pair
-block 0 ------------------.
-block 1 -.                |
-         v                v 
- .----------------.----------------.
- |  revision: 11  |  revision: 12  |
- |----------------|----------------|
- |       A        |       A''      |
- |----------------|----------------|
- |      CRC       |      CRC       |
- |----------------|----------------|
- |       B        |       A'''     | <- most recent A
- |----------------|----------------|
- |       A''      |      CRC       |
- |----------------|----------------|
- |      CRC       |       |        |
- |----------------|       v        |
- '----------------'----------------'
+metadata pair pointer: {block 0, block 1}
+                           '--.     '--------------------.
+disk                           v                          v
+.--------.--------.--------.--------.--------.--------.--------.--------.
+|                 |        |metadata|                 |metadata|        |
+|                 |        |block 0 |                 |block 1 |        |
+|                 |        |        |                 |        |        |
+'--------'--------'--------'--------'--------'--------'--------'--------'
+                               '--.                  .----'
+                                   v                v
+             metadata pair .----------------.----------------.
+                           |  revision: 11  |  revision: 12  |
+             block 1 is    |----------------|----------------|
+             most recent   |       A        |       A''      |
+                           |----------------|----------------|
+                           |      CRC       |      CRC       |
+                           |----------------|----------------|
+                           |       B        |       A'''     | <- most recent A
+                           |----------------|----------------|
+                           |       A''      |      CRC       |
+                           |----------------|----------------|
+                           |      CRC       |       |        |
+                           |----------------|       v        |
+                           '----------------'----------------'
 ```
 
 So how do atomically update our metadata pairs? Atomicity (a type of
@@ -550,7 +542,7 @@ multiple stages.
 
 There is another complexity the pops up when dealing with small logs. The
 amortized runtime cost of garbage collection is not only dependendent on its
-one time cost (_O(n²)_ for littlefs), but also depends on how often
+one time cost (_O(n&sup2;)_ for littlefs), but also depends on how often
 garbage collection occurs.
 
 Consider two extremes:
@@ -602,8 +594,8 @@ If we look at metadata pairs and linked-lists of metadata pairs at a high
 level, they have fairly nice runtime costs. Assuming _n_ metadata pairs,
 each containing _m_ metadata entries, the _lookup_ cost for a specific
 entry has a worst case runtime complexity of _O(nm)_. For _updating_ a specific
-entry, the worst case complexity is _O(nm²)_, with an amortized complexity of
-only _O(nm)_.
+entry, the worst case complexity is _O(nm&sup2;)_, with an amortized complexity
+of only _O(nm)_.
 
 However, splitting at 50% capacity does mean that in the best case our
 metadata pairs will only be 1/2 full. If we include the overhead of the second
@@ -629,9 +621,10 @@ many old elements can be reused after replacing parts of the data.
 
 littlefs has several requirements of its COW structures. They need to be
 efficient to read and write, but most frustrating, they need to be traversable
-with a constant amount of RAM. Notably this rules out B-trees, which can not
-be traversed with constant RAM, and B+-trees, which are not possible to update
-with COW operations.
+with a constant amount of RAM. Notably this rules out
+[B-trees][wikipedia-B-tree], which can not be traversed with constant RAM, and
+[B+-trees][wikipedia-B+-tree], which are not possible to update with COW
+operations.
 
 ---
 
@@ -642,7 +635,7 @@ operation, which means we need to update the second-to-last block, and then the
 third-to-last, and so on until we've copied out the entire file.
 
 ```
-A: A linked-list
+A linked-list
 .--------.  .--------.  .--------.  .--------.  .--------.  .--------.
 | data 0 |->| data 1 |->| data 2 |->| data 4 |->| data 5 |->| data 6 |
 |        |  |        |  |        |  |        |  |        |  |        |
@@ -666,15 +659,15 @@ A backwards linked-list
 '--------'  '--------'  '--------'  '--------'  '--------'  '--------'
 ```
 
-However, a backwards linked-list does have a rather glaring problem.
-Iterating over a file _in order_ has a runtime cost of _O(n²)_. A quadratic
-runtime just to read a file! That's awful.
+However, a backwards linked-list does have a rather glaring problem. Iterating
+over a file _in order_ has a runtime cost of _O(n&sup2;)_. A quadratic runtime
+just to read a file! That's awful.
 
 Fortunately we can do better. Instead of a singly linked list, littlefs
 uses a multilayered linked-list often called a skip-list. However, unlike
 the most common type of skip-list, littlefs's skip-lists are strictly
 deterministic built around some interesting properties of the
-count-trailing-zeros (CTZ) instruction.
+[count-trailing-zeros (CTZ) instruction][wikipedia-ctz].
 
 The rules CTZ skip-lists follow are that for every _n_&zwj;th block where _n_
 is divisible by 2&zwj;_&#739;_, that block contains a pointer to block
@@ -682,9 +675,9 @@ _n_-2&zwj;_&#739;_. This means that each block contains anywhere from 1 to
 log&#8322;_n_ pointers that skip to different preceding elements of the
 skip-list.
 
-The name comes from heavy use of the [count trailing zeros (CTZ)](https://en.wikipedia.org/wiki/Count_trailing_zeros)
-instruction, which lets us calculate the power-of-two factors efficiently.
-For a given block _n_, that block contains ctz(_n_)+1 pointers.
+The name comes from heavy use of the CTZ instruction, which lets us calculate
+the power-of-two factors efficiently. For a give block _n_, that block
+contains ctz(_n_)+1 pointers.
 
 ```
 A backwards CTZ skip-list
@@ -743,24 +736,21 @@ the previous. As we approach infinity, the storage overhead forms a geometric
 series. Solving this tells us that on average our storage overhead is only
 2 pointers per block.
 
-![overhead_per_block](https://latex.codecogs.com/svg.latex?%5Clim_%7Bn%5Cto%5Cinfty%7D%5Cfrac%7B1%7D%7Bn%7D%5Csum_%7Bi%3D0%7D%5E%7Bn%7D%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%20%3D%20%5Csum_%7Bi%3D0%7D%5Cfrac%7B1%7D%7B2%5Ei%7D%20%3D%202)
+![lim,n->inf((1/n)sum,i,0->n(ctz(i)+1)) = sum,i,0->inf(1/2^i) = 2][ctz-formula1]
 
 Because our file size is limited the word width we use to store sizes, we can
 also solve for the maximum number of pointers we would ever need to store in a
 block. If we set the overhead of pointers equal to the block size, we get the
-following equation. Note that both smaller block sizes and larger word widths
-result in more storage overhead.
+following equation. Note that both a smaller block size (![B][B]) and larger
+word width (![w][w]) result in more storage overhead.
 
-![maximum overhead](https://latex.codecogs.com/svg.latex?B%20%3D%20%5Cfrac%7Bw%7D%7B8%7D%5Cleft%5Clceil%5Clog_2%5Cleft%28%5Cfrac%7B2%5Ew%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D%5Cright%29%5Cright%5Crceil)
+![B = (w/8)ceil(log2(2^w / (B-2w/8)))][ctz-formula2]
 
-where:  
-B = block size in bytes  
-w = word width in bits  
+Solving the equation for ![B][B] gives us the minimum block size for some
+common word widths:
 
-Solving the equation for B gives us the minimum block size for some
-common word widths:  
-32 bit CTZ skip-list = minimum block size of 104 bytes  
-64 bit CTZ skip-list = minimum block size of 448 bytes  
+- 32-bit CTZ skip-list => minimum block size of 104 bytes
+- 64-bit CTZ skip-list => minimum block size of 448 bytes
 
 littlefs uses a 32-bit word width, so our blocks can only overflow with
 pointers if they are smaller than 104 bytes. This is an easy requirement, as
@@ -775,34 +765,31 @@ index + offset pair. So in theory we can store only a single pointer and size.
 
 However, calculating the index + offset pair from the size is a bit
 complicated. We can start with a summation that loops through all of the blocks
-up until our given size:
+up until our given size. Let ![B][B] be the block size in bytes, ![w][w] be the
+word width in bits, ![n][n] be the index of the block in the skip-list, and
+![N][N] be the file size in bytes:
 
-![summation1](https://latex.codecogs.com/svg.latex?N%20%3D%20%5Csum_i%5En%5Cleft%5BB-%5Cfrac%7Bw%7D%7B8%7D%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%5Cright%5D)
+![N = sum,i,0->n(B-(w/8)(ctz(i)+1))][ctz-formula3]
 
-where:  
-B = block size in bytes  
-w = word width in bits  
-n = block index in skip-list  
-N = file size in bytes  
-
-This works quite well, but requires `O(n)` to compute, which brings the full
-runtime of reading a file up to `O(n² log n)`. Fortunately, that summation
+This works quite well, but requires _O(n)_ to compute, which brings the full
+runtime of reading a file up to _O(n&sup2; log n)_. Fortunately, that summation
 doesn't need to touch the disk, so the practical impact is minimal.
 
 However, despite the integration of a bitwise operation, we can actually reduce
-this equation to a `O(1)` form.  While browsing the amazing resource that is
-the [On-Line Encyclopedia of Integer Sequences (OEIS)](https://oeis.org/),
-I managed to find [A001511](https://oeis.org/A001511), which matches the
-iteration of the CTZ instruction, and [A005187](https://oeis.org/A005187),
-which matches its partial summation. Much to my surprise, these both result
-from simple equations, leading us to a rather unintuitive property that ties
-together two seemingly unrelated bitwise instructions:
+this equation to a _O(1)_ form.  While browsing the amazing resource that is
+the [On-Line Encyclopedia of Integer Sequences (OEIS)][oeis], I managed to find
+[A001511][oeis-A001511], which matches the iteration of the CTZ instruction,
+and [A005187][oeis-A005187], which matches its partial summation. Much to my
+surprise, these both result from simple equations, leading us to a rather
+unintuitive property that ties together two seemingly unrelated bitwise
+instructions:
 
-![woah](https://latex.codecogs.com/svg.latex?%5Csum_i%5En%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%20%3D%202n-%5Ctext%7Bpopcount%7D%28n%29)
+![sum,i,0->n(ctz(i)+1) = 2n-popcount(n)][ctz-formula4]
 
-where:  
-ctz(x) = the number of trailing bits that are 0 in x  
-popcount(x) = the number of bits that are 1 in x  
+where:
+
+- ![ctz(x)][ctz(x)] = the number of trailing bits that are 0 in ![x][x]
+- ![popcount(x)][popcount(x)] = the number of bits that are 1 in ![x][x]
 
 Initial tests of this surprising property seem to hold. As n approaches
 infinity, we end up with an average overhead of 2 pointers, which matches what
@@ -813,7 +800,7 @@ script that verified this property for all 32-bit integers.
 Now we can substitute into our original equation to find a more efficient
 equation for file size:
 
-![summation2](https://latex.codecogs.com/svg.latex?N%20%3D%20Bn%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Cleft%282n-%5Ctext%7Bpopcount%7D%28n%29%5Cright%29)
+![N = Bn - (w/8)(2n-popcount(n))][ctz-formula5]
 
 Unfortunately, the popcount function is non-injective, so we can't solve this
 equation for our index. But what we can do is solve for an n' index that is
@@ -822,13 +809,13 @@ repeatedly substitute n' into the original equation until the error is smaller
 than our integer resolution. As it turns out, we only need to perform this
 substitution once, which gives us this formula for our index:
 
-![formulaforn](https://latex.codecogs.com/svg.latex?n%20%3D%20%5Cleft%5Clfloor%5Cfrac%7BN-%5Cfrac%7Bw%7D%7B8%7D%5Cleft%28%5Ctext%7Bpopcount%7D%5Cleft%28%5Cfrac%7BN%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D-1%5Cright%29&plus;2%5Cright%29%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D%5Cright%5Crfloor)
+![n = floor((N-(w/8)popcount(N/(B-2w/8))) / (B-2w/8))][ctz-formula6]
 
 Now that we have our index n, we can just plug it back into the above equation
 to find the offset. We run into a bit of a problem with integer overflow, but
 we can avoid this by rearranging the equation a bit:
 
-![formulaforoff](https://latex.codecogs.com/svg.latex?%5Cmathit%7Boff%7D%20%3D%20N%20-%20%5Cleft%28B-2%5Cfrac%7Bw%7D%7B8%7D%5Cright%29n%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Ctext%7Bpopcount%7D%28n%29)
+![off = N - (B-2w/8)n - (w/8)popcount(n)][ctz-formula7]
 
 Our solution requires quite a bit of math, but computer are very good at math.
 Now we can find both our block index and offset from a size in `O(1)`, letting
@@ -1002,13 +989,13 @@ Exhibit B: A backwards linked-list
 ```
 
 However, a backwards linked-list does come with a rather glaring problem.
-Iterating over a file _in order_ has a runtime cost of `O(n²)`. Gah! A
+Iterating over a file _in order_ has a runtime cost of `O(n&sup2;)`. Gah! A
 quadratic runtime to just _read_ a file? That's awful. Keep in mind reading
 files is usually the most common filesystem operation.
 
 To avoid this problem, the littlefs uses a multilayered linked-list. For
 every `n`th block where `n` is divisible by `2ˣ`, the block contains a pointer
-to block `n-2ˣ`. So each block contains anywhere from `1` to `log²n` pointers
+to block `n-2ˣ`. So each block contains anywhere from `1` to `log&sup2;n` pointers
 that skip to various sections of the preceding list. If you're familiar with
 data-structures, you may have recognized that this is a type of deterministic
 skip-list.
@@ -1279,7 +1266,7 @@ is simply a noop. This "drop it on the floor" strategy greatly reduces the
 complexity of managing on disk data structures, especially when handling
 high-risk error conditions.
 
---- <!-- need this? -->
+---
 
 Our block allocator needs to find free blocks efficiently. You could traverse
 through every block on storage and check each one against our filesystem tree,
@@ -1326,9 +1313,9 @@ alloc = 112     lookahead:                         ffff8000
                 fs blocks: ffffffffffffffffffffffffffff8000
 ```
 
-This lookahead approach has a runtime complexity of _O(n²)_ to completely scan
-storage, however, bitmaps are surprisingly compact, and in practice only one or
-two passes are usually needed to find free blocks. Additionally, the
+This lookahead approach has a runtime complexity of _O(n&sup2;)_ to completely
+scan storage, however, bitmaps are surprisingly compact, and in practice only
+one or two passes are usually needed to find free blocks. Additionally, the
 performance of the allocator can be optimized by adjusting the block size or
 size of the lookahead buffer, trading either write granularity or RAM for
 allocator performance.
@@ -1344,7 +1331,7 @@ wear on a single block in the storage.
 littlefs has two methods of protecting against wear: detection and recovery
 from bad blocks and evenly distributing wear across dynamic blocks.
 
---- <!-- need this? -->
+---
 
 Recovery from bad blocks doesn't actually have anything to do with the block
 allocator itself. Instead, it relies on the ability of the filesystem to detect
@@ -1564,8 +1551,8 @@ alloc = 112     lookahead:                         ffff8000
                 fs blocks: ffffffffffffffffffffffffffff8000
 ```
 
-While this lookahead approach still has an asymptotic runtime of `O(n²)` to
-scan all of storage, the lookahead reduces the practical runtime to a
+While this lookahead approach still has an asymptotic runtime of `O(n&sup2;)`
+to scan all of storage, the lookahead reduces the practical runtime to a
 reasonable amount. Bit-vectors are surprisingly compact, given only 16 bytes,
 the lookahead could track 128 blocks. For a 4Mbyte flash chip with 4Kbyte
 blocks, the littlefs would only need 8 passes to scan the entire storage.
@@ -1619,6 +1606,8 @@ In this case, we can store the file directly in our directory's metadata pair.
 We call this an inline file, and it allows a directory to store many small
 files quite efficiently. Our previous 4 byte file now only takes up a
 theoretical 16 bytes on disk.
+
+<!-- pic here? -->
 
 Once the file exceeds 1/4 the block size, we switch to a CTZ skip-list. This
 means that our files never use more than 4x storage overhead, decreasing as
@@ -1681,11 +1670,11 @@ half-orphan.
 
 <!-- pic here -->
 
-Finding orphans and half-orphans is expensive, requiring a `O(n²)` comparison
-of every metadata pair with every directory entry. But the tradeoff is a power
-resilient filesystem that works with only a bounded amount of RAM. Fortunately,
-we only need to check for orphans on the first allocation after boot, and a
-read-only littlefs can ignore the threaded linked-list entirely.
+Finding orphans and half-orphans is expensive, requiring a _O(n&sup2;)_
+comparison of every metadata pair with every directory entry. But the tradeoff
+is a power resilient filesystem that works with only a bounded amount of RAM.
+Fortunately, we only need to check for orphans on the first allocation after
+boot, and a read-only littlefs can ignore the threaded linked-list entirely.
 
 If we only had some sort of global state, then we could also store a flag and
 avoid searching for orphans unless we knew we were specifically interrupted
@@ -1726,7 +1715,7 @@ In the end, solving the move problem required creating a new mechanism for
 sharing knowledge between multiple metadata pairs. In littlefs this led to the
 introduction of "global state".
 
----  <!-- need this -->
+---
 
 Global state is a small set of state that can be updated from _any_ metadata
 pair. Combining global state with metadata pair's ability to update multiple
@@ -1759,7 +1748,7 @@ disk. For this reason, it's very important that we keep the size of global
 state bounded and extremely small. But, even with a strict budget, global
 state is incredibly valuable.
 
---- <!-- TODO need this? -->
+---
 
 Now we can solve the move problem. We can create global state describing our
 move atomically with the creation of the new file, and we can clear this move
@@ -2432,7 +2421,14 @@ That's the little filesystem. Thanks for reading!
 
 And that's littlefs, thanks for reading!
 
-[wikipedia-flash-memory]: https://en.wikipedia.org/wiki/Flash_memory
+[wikipedia-flash]: https://en.wikipedia.org/wiki/Flash_memory
+[wikipedia-B-tree]: https://en.wikipedia.org/wiki/B-tree
+[wikipedia-B+-tree]: https://en.wikipedia.org/wiki/B%2B_tree
+[wikipedia-ctz]: https://en.wikipedia.org/wiki/Count_trailing_zeros
+
+[oeis]: https://oeis.org
+[oeis-A001511]: https://oeis.org/A001511
+[oeis-A005187]: https://oeis.org/A005187
 
 [fat]: https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system
 [ext2]: http://e2fsprogs.sourceforge.net/ext2intro.html
@@ -2449,11 +2445,27 @@ And that's littlefs, thanks for reading!
 [metadata-formula2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
 [metadata-formula3]: https://latex.codecogs.com/svg.latex?d%20%3D%20%281-r%29%20%5Cfrac%7Bsize%7D%7Bn%7D
 [metadata-formula4]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Br%5Cfrac%7Bsize%7D%7Bn%7D%7D%7B%281-r%29%5Cfrac%7Bsize%7D%7Bn%7D&plus;1%7D
-[r]: https://latex.codecogs.com/svg.latex?r
+
+[ctz-formula1]: https://latex.codecogs.com/svg.latex?%5Clim_%7Bn%5Cto%5Cinfty%7D%5Cfrac%7B1%7D%7Bn%7D%5Csum_%7Bi%3D0%7D%5E%7Bn%7D%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%20%3D%20%5Csum_%7Bi%3D0%7D%5Cfrac%7B1%7D%7B2%5Ei%7D%20%3D%202
+[ctz-formula2]: https://latex.codecogs.com/svg.latex?B%20%3D%20%5Cfrac%7Bw%7D%7B8%7D%5Cleft%5Clceil%5Clog_2%5Cleft%28%5Cfrac%7B2%5Ew%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D%5Cright%29%5Cright%5Crceil
+[ctz-formula3]: https://latex.codecogs.com/svg.latex?N%20%3D%20%5Csum_i%5En%5Cleft%5BB-%5Cfrac%7Bw%7D%7B8%7D%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%5Cright%5D
+[ctz-formula4]: https://latex.codecogs.com/svg.latex?%5Csum_i%5En%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%20%3D%202n-%5Ctext%7Bpopcount%7D%28n%29
+[ctz-formula5]: https://latex.codecogs.com/svg.latex?N%20%3D%20Bn%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Cleft%282n-%5Ctext%7Bpopcount%7D%28n%29%5Cright%29
+[ctz-formula6]: https://latex.codecogs.com/svg.latex?n%20%3D%20%5Cleft%5Clfloor%5Cfrac%7BN-%5Cfrac%7Bw%7D%7B8%7D%5Cleft%28%5Ctext%7Bpopcount%7D%5Cleft%28%5Cfrac%7BN%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D-1%5Cright%29&plus;2%5Cright%29%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D%5Cright%5Crfloor
+[ctz-formula7]: https://latex.codecogs.com/svg.latex?%5Cmathit%7Boff%7D%20%3D%20N%20-%20%5Cleft%28B-2%5Cfrac%7Bw%7D%7B8%7D%5Cright%29n%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Ctext%7Bpopcount%7D%28n%29
+
+[B]: https://latex.codecogs.com/svg.latex?B
 [d]: https://latex.codecogs.com/svg.latex?d
-[s]: https://latex.codecogs.com/svg.latex?s
-[n]: https://latex.codecogs.com/svg.latex?n
 [m]: https://latex.codecogs.com/svg.latex?m
+[N]: https://latex.codecogs.com/svg.latex?N
+[n]: https://latex.codecogs.com/svg.latex?n
+[r]: https://latex.codecogs.com/svg.latex?r
+[s]: https://latex.codecogs.com/svg.latex?s
+[w]: https://latex.codecogs.com/svg.latex?w
+[x]: https://latex.codecogs.com/svg.latex?x
+
+[ctz(x)]: https://latex.codecogs.com/svg.latex?%5Ctext%7Bctz%7D%28x%29
+[popcount(x)]: https://latex.codecogs.com/svg.latex?%5Ctext%7Bpopcount%7D%28x%29
 
 [O(nm)]: https://latex.codecogs.com/svg.latex?O%28nm%29
 [O(nm^2)]: https://latex.codecogs.com/svg.latex?O%28nm%5E%7B2%7D%29
