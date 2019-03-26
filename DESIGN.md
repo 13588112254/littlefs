@@ -822,13 +822,12 @@ Our solution requires quite a bit of math, but computer are very good at math.
 Now we can find both our block index and offset from a size in _O(1)_, letting
 us store CTZ skip-lists with only a pointer and size.
 
---- <!-- need? -->
-
 CTZ skip-lists give us a COW data structure that is easily traversable in
-`O(n)`, can be appended in `O(1)`, and can be read in `O(n log n)`. All of
+_O(n)_, can be appended in _O(1)_, and can be read in _O(n log n)_. All of
 these operations work in a bounded amount of RAM and require only two words of
 storage overhead per block. In combination with metadata pairs, CTZ skip-lists
 provide power resilience and compact storage of data.
+
 
 <!-- maybe no? Here is what it might look like to update a file stored with a CTZ skip-list: -->
 
