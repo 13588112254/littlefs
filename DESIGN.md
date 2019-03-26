@@ -386,9 +386,25 @@ revision count that we compare using sequence arithmetic (very handy for
 avoiding problems with integer overflow). Conventiently, this revision count
 also gives us a rough idea of how many erases have occured on the block.
 
---- <!-- picture of metadata pair tree? -->
-
 ```
+metadata pair
+block 0 ------------------.
+block 1 -.                |
+         v                v 
+ .----------------.----------------.
+ |  revision: 11  |  revision: 12  |
+ |----------------|----------------|
+ |       A        |       A''      |
+ |----------------|----------------|
+ |      CRC       |      CRC       |
+ |----------------|----------------|
+ |       B        |       A'''     | <- most recent A
+ |----------------|----------------|
+ |       A''      |      CRC       |
+ |----------------|----------------|
+ |      CRC       |       |        |
+ |----------------|       v        |
+ '----------------'----------------'
 ```
 
 So how do atomically update our metadata pairs? Atomicity (a type of
@@ -514,9 +530,10 @@ multiple stages.
    |      CRC       |                |    |       |        |                | |
    |----------------|                |    |       v        |                | |
    '----------------'----------------'    '----------------'----------------' |
-                                                                              |
-                                          .----------------.----------------. |
-                                          |  revision: 1   |  revision: 0   |<'
+                                                   .----------------.---------'
+                                                  v                v
+                                          .----------------.----------------.  
+                                          |  revision: 1   |  revision: 0   |  
                                           |----------------|----------------|
                                           |       C        |                |
                                           |----------------|                |
@@ -579,7 +596,7 @@ lazily, waiting until we need to compact before checking if we fit in our 50%
 limit. This limits the overhead of garbage collection to 2x the runtime cost,
 giving us an amortized runtime complexity of _O(1)_.
 
---- <!-- TODO need this bar here? -->
+---
 
 If we look at metadata pairs and linked-lists of metadata pairs at a high
 level, they have fairly nice runtime costs. Assuming _n_ metadata pairs,
@@ -595,61 +612,6 @@ of 4x the original size. I imagine users would not be happy if they found
 that they can only use a quarter of their original storage. Metadata pairs
 provide a mechanism for performing atomic updates, but we need a separate
 mechanism for storing the bulk of our data.
-
-**-- old below --**
-
-## Metadata pairs
-
-The core piece of technology that provides the backbone for the littlefs is
-the concept of metadata pairs. The key idea here is that any metadata that
-needs to be updated atomically is stored on a pair of blocks tagged with
-a revision count and checksum. Every update alternates between these two
-pairs, so that at any time there is always a backup containing the previous
-state of the metadata.
-
-Consider a small example where each metadata pair has a revision count,
-a number as data, and the XOR of the block as a quick checksum. If
-we update the data to a value of 9, and then to a value of 5, here is
-what the pair of blocks may look like after each update:
-```
-  block 1   block 2        block 1   block 2        block 1   block 2
-.---------.---------.    .---------.---------.    .---------.---------.
-| rev: 1  | rev: 0  |    | rev: 1  | rev: 2  |    | rev: 3  | rev: 2  |
-| data: 3 | data: 0 | -> | data: 3 | data: 9 | -> | data: 5 | data: 9 |
-| xor: 2  | xor: 0  |    | xor: 2  | xor: 11 |    | xor: 6  | xor: 11 |
-'---------'---------'    '---------'---------'    '---------'---------'
-                 let data = 9             let data = 5
-```
-
-After each update, we can find the most up to date value of data by looking
-at the revision count.
-
-Now consider what the blocks may look like if we suddenly lose power while
-changing the value of data to 5:
-```
-  block 1   block 2        block 1   block 2        block 1   block 2
-.---------.---------.    .---------.---------.    .---------.---------.
-| rev: 1  | rev: 0  |    | rev: 1  | rev: 2  |    | rev: 3  | rev: 2  |
-| data: 3 | data: 0 | -> | data: 3 | data: 9 | -x | data: 3 | data: 9 |
-| xor: 2  | xor: 0  |    | xor: 2  | xor: 11 |    | xor: 2  | xor: 11 |
-'---------'---------'    '---------'---------'    '---------'---------'
-                 let data = 9             let data = 5
-                                          powerloss!!!
-```
-
-In this case, block 1 was partially written with a new revision count, but
-the littlefs hadn't made it to updating the value of data. However, if we
-check our checksum we notice that block 1 was corrupted. So we fall back to
-block 2 and use the value 9.
-
-Using this concept, the littlefs is able to update metadata blocks atomically.
-There are a few other tweaks, such as using a 32 bit CRC and using sequence
-arithmetic to handle revision count overflow, but the basic concept
-is the same. These metadata pairs define the backbone of the littlefs, and the
-rest of the filesystem is built on top of these atomic updates.
-
-
-*- new below -*
 
 ## CTZ skip-lists
 

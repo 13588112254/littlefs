@@ -214,8 +214,8 @@ that there are multiple levels of types which break down into more info:
 
 
 Before we go further, there's one important thing to note. These tags are
-**not** stored in little-endian. Tags stored in commits are actually stored in
-big-endian (and is the only thing in littlefs stored in big-endian). This
+**not** stored in little-endian. Tags stored in commits are actually stored
+in big-endian (and is the only thing in littlefs stored in big-endian). This
 little bit of craziness comes from the fact that the valid bit must be the
 first bit in a commit, and when converted to little-endian, the valid bit finds
 itself in byte 4. We could restructure the tag to store the valid bit lower,
