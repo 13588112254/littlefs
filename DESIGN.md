@@ -633,7 +633,7 @@ with a constant amount of RAM. Notably this rules out B-trees, which can not
 be traversed with constant RAM, and B+-trees, which are not possible to update
 with COW operations.
 
---- <!-- need this bar? -->
+---
 
 So, what can we do? First lets consider storing files in a simple COW
 linked-list. Appending a block, which is the basis for writing files, means we
@@ -642,7 +642,7 @@ operation, which means we need to update the second-to-last block, and then the
 third-to-last, and so on until we've copied out the entire file.
 
 ```
-Exhibit A: A linked-list
+A: A linked-list
 .--------.  .--------.  .--------.  .--------.  .--------.  .--------.
 | data 0 |->| data 1 |->| data 2 |->| data 4 |->| data 5 |->| data 6 |
 |        |  |        |  |        |  |        |  |        |  |        |
@@ -658,7 +658,7 @@ are linear, this design gambles that appends are the most common type of data
 update.
 
 ```
-Exhibit B: A backwards linked-list
+A backwards linked-list
 .--------.  .--------.  .--------.  .--------.  .--------.  .--------.
 | data 0 |<-| data 1 |<-| data 2 |<-| data 4 |<-| data 5 |<-| data 6 |
 |        |  |        |  |        |  |        |  |        |  |        |
@@ -678,7 +678,7 @@ count-trailing-zeros (CTZ) instruction.
 
 The rules CTZ skip-lists follow are that for every _n_&zwj;th block where _n_
 is divisible by _2&#739;_, that block contains a pointer to block _n-2&#739;_.
-This means that each block contains anywhere from _1_ to _log&#8322;n_ pointers
+This means that each block contains anywhere from 1 to _log&#8322;n_ pointers
 that skip to different preceding elements of the skip-list.
 
 The name comes from heavy use of the [count trailing zeros (CTZ)](https://en.wikipedia.org/wiki/Count_trailing_zeros)
@@ -686,7 +686,7 @@ instruction, which lets us calculate the power-of-two factors efficiently.
 For a given block _n_, that block contains _ctz(n)+1_ pointers.
 
 ```
-Exhibit C: A backwards CTZ skip-list
+A backwards CTZ skip-list
 .--------.  .--------.  .--------.  .--------.  .--------.  .--------.
 | data 0 |<-| data 1 |<-| data 2 |<-| data 3 |<-| data 4 |<-| data 5 |
 |        |<-|        |--|        |<-|        |--|        |  |        |
@@ -697,8 +697,8 @@ Exhibit C: A backwards CTZ skip-list
 The additional pointers let us navigate the data-structure on disk much more
 efficiently than in a singly linked list.
 
-Taking exhibit C for example, here is the path from data block 5 to data
-block 1. You can see how data block 3 was completely skipped:
+Consider a path from data block 5 to data block 1. You can see how data block 3
+was completely skipped:
 ```
 .--------.  .--------.  .--------.  .--------.  .--------.  .--------.
 | data 0 |  | data 1 |<-| data 2 |  | data 3 |  | data 4 |<-| data 5 |
@@ -718,18 +718,18 @@ The path to data block 0 is even faster, requiring only two jumps:
 
 We can find the runtime complexity by looking at the path to any block from
 the block containing the most pointers. Every step along the path divides
-the search space for the block in half, giving us a runtime of `O(log n)`.
+the search space for the block in half, giving us a runtime of _O(log n)_.
 To get _to_ the block with the most pointers, we can perform the same steps
-backwards, which puts the runtime at `O(2 log n)` = `O(log n)`. An interesting
+backwards, which puts the runtime at _O(2 log n)_ = _O(log n)_. An interesting
 note is that this optimal path occurs naturally if we greedily choose the
 pointer that covers the most distance without passing our target.
 
 So now we have a COW data structure that is cheap to append with a runtime of
-`O(1)`, and can be read with a worst case runtime of `O(n log n)`. Given that
+_O(1)_, and can be read with a worst case runtime of _O(n log n)_. Given that
 this runtime is also divided by the amount of data we can store in a block,
 this cost is fairly reasonable.
 
--- <!-- need?-->
+---
 
 This is a new data structure, so we still have several questions. What is the
 storage overage? Can the number of pointers exceed the size of a block? How do
