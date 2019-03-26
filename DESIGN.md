@@ -677,13 +677,14 @@ deterministic built around some interesting properties of the
 count-trailing-zeros (CTZ) instruction.
 
 The rules CTZ skip-lists follow are that for every _n_&zwj;th block where _n_
-is divisible by _2&#739;_ test 2&#739;, that block contains a pointer to block _n-2&#739;_ test _n_-2&zwj;_&#739;_&zwj;.
-This means that each block contains anywhere from 1 to _log&#8322;n_ test log&#8322;_n_ pointers
-that skip to different preceding elements of the skip-list.
+is divisible by 2&zwj;_&#739;_, that block contains a pointer to block
+_n_-2&zwj;_&#739;_. This means that each block contains anywhere from 1 to
+log&#8322;_n_ pointers that skip to different preceding elements of the
+skip-list.
 
 The name comes from heavy use of the [count trailing zeros (CTZ)](https://en.wikipedia.org/wiki/Count_trailing_zeros)
 instruction, which lets us calculate the power-of-two factors efficiently.
-For a given block _n_, that block contains _ctz(n)+1_ pointers.
+For a given block _n_, that block contains ctz(_n_)+1 pointers.
 
 ```
 A backwards CTZ skip-list
