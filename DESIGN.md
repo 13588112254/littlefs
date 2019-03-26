@@ -667,7 +667,7 @@ Exhibit B: A backwards linked-list
 ```
 
 However, a backwards linked-list does have a rather glaring problem.
-Iterating over a file _in order_ has a runtime cost of `O(n²)`. A quadratic
+Iterating over a file _in order_ has a runtime cost of _O(n²)_. A quadratic
 runtime just to read a file! That's awful.
 
 Fortunately we can do better. Instead of a singly linked list, littlefs
@@ -676,10 +676,11 @@ the most common type of skip-list, littlefs's skip-lists are strictly
 deterministic built around some interesting properties of the
 count-trailing-zeros (CTZ) instruction.
 
-The rules CTZ skip-lists follow are that for every nth block where n is
-divisible by 2^x, that block contains a pointer to block n-2^x. This means
-that each block contains anywhere from 1 to log2(n) pointers that skip to
-different preceding elements of the skip-list.
+The rules CTZ skip-lists follow are that for every ![n][n]th block where
+![n][n] is divisible by ![2^x][2^x], that block contains a pointer to block
+![n-2^x][n-2^x]. This means that each block contains anywhere from ![1][1] to
+![log2(n)][log2(n)] pointers that skip to different preceding elements of the
+skip-list.
 
 The name comes from heavy use of the [count trailing zeros (CTZ)](https://en.wikipedia.org/wiki/Count_trailing_zeros)
 instruction, which lets us calculate the power-of-two factors efficiently.
@@ -2459,3 +2460,9 @@ And that's littlefs, thanks for reading!
 
 [cow]: https://upload.wikimedia.org/wikipedia/commons/0/0c/Cow_female_black_white.jpg
 [elephant]: https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg
+
+[2^x]: https://latex.codecogs.com/svg.latex?2%5Ex
+[n-2^x]: https://latex.codecogs.com/svg.latex?n-2%5Ex
+[log2(n)]: https://latex.codecogs.com/svg.latex?%5Clog_2%28n%29
+[1]: https://latex.codecogs.com/svg.latex?1
+
