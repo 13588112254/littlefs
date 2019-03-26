@@ -2463,6 +2463,6 @@ And that's littlefs, thanks for reading!
 
 [2^x]: https://latex.codecogs.com/svg.latex?2%5Ex
 [n-2^x]: https://latex.codecogs.com/svg.latex?n-2%5Ex
-[log2(n)]: https://latex.codecogs.com/svg.latex?%5Clog_2%28n%29
+[log2(n)]: https://latex.codecogs.com/svg.latex?%5Clog_2n
 [1]: https://latex.codecogs.com/svg.latex?1
 
