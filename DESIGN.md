@@ -788,8 +788,8 @@ instructions:
 
 where:
 
-- ![ctz(x)][ctz(x)] = the number of trailing bits that are 0 in ![x][x]
-- ![popcount(x)][popcount(x)] = the number of bits that are 1 in ![x][x]
+- ctz(![x][x]) = the number of trailing bits that are 0 in ![x][x]
+- popcount(![x][x]) = the number of bits that are 1 in ![x][x]
 
 Initial tests of this surprising property seem to hold. As n approaches
 infinity, we end up with an average overhead of 2 pointers, which matches what
@@ -2460,6 +2460,7 @@ And that's littlefs, thanks for reading!
 [m]: https://latex.codecogs.com/svg.latex?m
 [N]: https://latex.codecogs.com/svg.latex?N
 [n]: https://latex.codecogs.com/svg.latex?n
+[n']: https://latex.codecogs.com/svg.latex?n%27
 [r]: https://latex.codecogs.com/svg.latex?r
 [s]: https://latex.codecogs.com/svg.latex?s
 [w]: https://latex.codecogs.com/svg.latex?w
@@ -2467,7 +2468,6 @@ And that's littlefs, thanks for reading!
 
 [ctz(x)]: https://latex.codecogs.com/svg.latex?%5Ctext%7Bctz%7D%28x%29
 [popcount(x)]: https://latex.codecogs.com/svg.latex?%5Ctext%7Bpopcount%7D%28x%29
-[n']: https://latex.codecogs.com/svg.latex?n%27
 
 [O(nm)]: https://latex.codecogs.com/svg.latex?O%28nm%29
 [O(nm^2)]: https://latex.codecogs.com/svg.latex?O%28nm%5E%7B2%7D%29
