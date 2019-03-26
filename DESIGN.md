@@ -79,8 +79,6 @@ of designs.
    the blocks in place.
 
    ```
-                   |
-                   v
                .--------.
                |  root  |
                |        |
@@ -103,9 +101,9 @@ of designs.
    ```
 
    Because of their simplicity, these filesystems are usually both the fastest
-   and smallest. However the lack of power resilience is, of course, bad, and
-   the binding relationship of storage location and data removes the
-   filesystem's ability to manage wear.
+   and smallest. However the lack of power resilience is not great, and the
+   binding relationship of storage location and data removes the filesystem's
+   ability to manage wear.
 
 2. In a completely different direction, we have logging filesystems, such as
    [JFFS][jffs], [YAFFS][yaffs], and [SPIFFS][spiffs]. In a logging filesystem,
@@ -116,13 +114,12 @@ of designs.
    the read cost, but this comes at a tradeoff of RAM.
 
    ```
-                                                    |
-                                                    v
-   .--------.--------.--------.--------.--------.--------.--------.
-   |   C    | new B  | new A  |                 |   A    |   B    |
-   |        |        |        |->    unused     |        |        |
-   |        |        |        |                 |        |        |
-   '--------'--------'--------'--------'--------'--------'--------'
+                                                             v
+   .--------.--------.--------.--------.--------.--------.--------.--------.
+   |        C        | new B  | new A  |                 |   A    |   B    |
+   |                 |        |        |->    unused     |        |        |
+   |                 |        |        |                 |        |        |
+   '--------'--------'--------'--------'--------'--------'--------'--------'
    ```
 
    Logging filesystem are beautifully elegant. With a checksum, we can easily
@@ -148,11 +145,10 @@ of designs.
    change before it occurs.
 
    ```
-                                            |
-                   |         journal        v
-                   v        .--------.--------. 
+                             journal
+                            .--------.--------. 
                .--------.   | C'| D'|     | E'| 
-               |  root  |   |   |   |->   |   |
+               |  root  |-->|   |   |->   |   |
                |        |   |   |   |     |   |
                |        |   '--------'--------'
                '--------'
@@ -193,11 +189,9 @@ of designs.
    stored in a very small log.
 
    ```
-                   |                           |
-                   v                           v
                .--------.                  .--------.
-               |  root  |                  |new root|
-               |        |        ->        |        |
+               |  root  |       write      |new root|
+               |        |        ==>       |        |
                |        |                  |        |
                '--------'                  '--------'
                .-'    '-.                    |    '-.
@@ -264,7 +258,36 @@ out of small, two blocks logs that provide atomic updates to metadata anywhere
 on the filesystem. At the super-block level, littlefs is a COW tree of blocks
 that can be evicted on demand.
 
-<!-- pic here? -->
+```
+                      root
+                     .--------.--------.
+                     | A'| B'|         |
+                     |   |   |->       |
+                     |   |   |         |
+                     '--------'--------'
+                  .----'   '-------------.
+         A       v                B       v
+        .--------.--------.      .--------.--------. 
+        | C'| D'|         |      | E'|new|         | 
+        |   |   |->       |      |   | E'|->       |
+        |   |   |         |      |   |   |         |
+        '--------'--------'      '--------'--------'
+       .--'   '--.                 |   '-------------------.
+      v           v             .-'                         v
+  .--------.  .--------.       v                        .--------.
+  |   C    |  |   D    |   .--------.       write       | new E  |
+  |        |  |        |   |   E    |        ==>        |        |
+  |        |  |        |   |        |                   |        |
+  '--------'  '--------'   |        |                   '--------'
+      |                    '--------'                   .-'    |
+      v                    .-'    '-.     .------------|-------'
+  .--------.              v          v   v             v
+  |   F    |          .--------.  .--------.      .--------.
+  |        |          |   G    |  |   H    |      | new G  |
+  |        |          |        |  |        |      |        |
+  '--------'          |        |  |        |      |        |
+                      '--------'  '--------'      '--------'
+```
 
 There are still some minor issues. Small logs can be expensive in terms of
 storage, in the worst case a small log costs 4x the size of the original data.
