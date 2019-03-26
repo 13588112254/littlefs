@@ -718,14 +718,14 @@ The path to data block 0 is even faster, requiring only two jumps:
 
 We can find the runtime complexity by looking at the path to any block from
 the block containing the most pointers. Every step along the path divides
-the search space for the block in half, giving us a runtime of _O(log n)_ test _O(_&zwj;log&zwj;_n)_.
+the search space for the block in half, giving us a runtime of _O(log n)_.
 To get _to_ the block with the most pointers, we can perform the same steps
-backwards, which puts the runtime at _O(2 log n)_ = _O(log n)_ test _O(_&zwj;2log&zwj;_n)_. An interesting
+backwards, which puts the runtime at _O(2 log n)_ = _O(log n)_. An interesting
 note is that this optimal path occurs naturally if we greedily choose the
 pointer that covers the most distance without passing our target.
 
 So now we have a COW data structure that is cheap to append with a runtime of
-_O(1)_ test _O(_&zwj;1&zwj;_)_, and can be read with a worst case runtime of _O(n log n)_ test _O(n_&zwj;log&zwj;_n)_. Given that
+_O(1)_, and can be read with a worst case runtime of _O(n log n)_. Given that
 this runtime is also divided by the amount of data we can store in a block,
 this cost is fairly reasonable.
 
