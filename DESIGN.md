@@ -116,7 +116,7 @@ of designs.
                                                              v
    .--------.--------.--------.--------.--------.--------.--------.--------.
    |        C        | new B  | new A  |                 |   A    |   B    |
-   |                 |        |        |->    unused     |        |        |
+   |                 |        |        |->               |        |        |
    |                 |        |        |                 |        |        |
    '--------'--------'--------'--------'--------'--------'--------'--------'
    ```
@@ -1677,7 +1677,29 @@ worry about the runtime complexity of unbounded logs. We can store other
 directory pointers in our metadata pairs, which gives us a directory tree, much
 like what you find on other filesystems.
 
-<!-- pic here? -->
+```
+            .--------.
+           .|  root  |
+           ||        |
+           ||        |
+           |'--------'
+           '---|--|-'
+            .-'    '-------------------------.
+           v                                  v
+      .--------.        .--------.        .--------.
+     .| dir A  |------->| dir A  |       .| dir B  |
+     ||        |       ||        |       ||        |
+     ||        |       ||        |       ||        |
+     |'--------'       |'--------'       |'--------'
+     '---|--|-'        '----|---'        '---|--|-'
+      .-'    '-.            |             .-'    '-.
+     v          v           v            v          v
+.--------.  .--------.  .--------.  .--------.  .--------.
+| file C |  | file D |  | file E |  | file F |  | file G |
+|        |  |        |  |        |  |        |  |        |
+|        |  |        |  |        |  |        |  |        |
+'--------'  '--------'  '--------'  '--------'  '--------'
+```
 
 The main complication is, once again, traversal with a constant amount of RAM.
 The directory tree is a tree, and the unfortunate fact is you can't traverse a
@@ -1688,7 +1710,29 @@ skip-lists, we're not limited to strict COW operations. One thing we can do is
 thread a linked-list through our tree, explicitly enabling cheap traversal
 over the entire filesystem.
 
-<!-- pic here? -->
+```
+            .--------.
+           .|  root  |-.
+           ||        | |
+   .--------|        |-'
+   |       |'--------'
+   |       '---|--|-'
+   |        .-'    '-------------------------.
+   |       v                                  v
+   |  .--------.        .--------.        .--------.
+   '->| dir A  |------->| dir A  |------->| dir B  |
+     ||        |       ||        |       ||        |
+     ||        |       ||        |       ||        |
+     |'--------'       |'--------'       |'--------'
+     '---|--|-'        '----|---'        '---|--|-'
+      .-'    '-.            |             .-'    '-.
+     v          v           v            v          v
+.--------.  .--------.  .--------.  .--------.  .--------.
+| file C |  | file D |  | file E |  | file F |  | file G |
+|        |  |        |  |        |  |        |  |        |
+|        |  |        |  |        |  |        |  |        |
+'--------'  '--------'  '--------'  '--------'  '--------'
+```
 
 Unfortunately, not sticking to pure COW operations creates some problems. Now,
 whenever we want to manipulate the directory tree, multiple pointers need to be
@@ -1705,11 +1749,133 @@ that maintain a filesystem tree threaded with a linked-list for traversal.
 
 Adding a directory to our tree:
 
-<!-- pic here -->
+```
+         .--------.
+        .|root dir|-.
+        ||        | |
+.--------|        |-'
+|       |'--------'
+|       '---|--|-'
+|        .-'    '-.
+|       v          v
+|  .--------.  .--------.
+'->| dir A  |->| dir C  |
+  ||        | ||        |
+  ||        | ||        |
+  |'--------' |'--------'
+  '--------'  '--------'
+
+allocate dir B
+=>
+         .--------.
+        .|root dir|-.
+        ||        | |
+.--------|        |-'
+|       |'--------'
+|       '---|--|-'
+|        .-'    '-.
+|       v          v
+|  .--------.    .--------.
+'->| dir A  |--->| dir C  |
+  ||        | .->|        |
+  ||        | | ||        |
+  |'--------' | |'--------'
+  '--------'  | '--------'
+              |
+   .--------. |
+  .| dir B  |-'
+  ||        |
+  ||        |
+  |'--------'
+  '--------' 
+
+insert dir B into threaded linked-list, creating an orphan
+=>
+         .--------.
+        .|root dir|-.
+        ||        | |
+.--------|        |-'
+|       |'--------'
+|       '---|--|-'
+|        .-'    '-------------.
+|       v                      v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  ||        | || orphan!| ||        |
+  ||        | ||        | ||        |
+  |'--------' |'--------' |'--------'
+  '--------'  '--------'  '--------'
+
+add dir B to parent directory
+=>
+               .--------.
+              .|root dir|-.
+              ||        | |
+.--------------|        |-'
+|             |'--------'
+|             '--|-|-|-'
+|        .------'  |  '-------.
+|       v          v           v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  ||        | ||        | ||        |
+  ||        | ||        | ||        |
+  |'--------' |'--------' |'--------'
+  '--------'  '--------'  '--------'
+```
 
 Removing a directory:
 
-<!-- pic here -->
+```
+               .--------.
+              .|root dir|-.
+              ||        | |
+.--------------|        |-'
+|             |'--------'
+|             '--|-|-|-'
+|        .------'  |  '-------.
+|       v          v           v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  ||        | ||        | ||        |
+  ||        | ||        | ||        |
+  |'--------' |'--------' |'--------'
+  '--------'  '--------'  '--------'
+
+remove dir B from parent directory, creating an orphan
+=>
+         .--------.
+        .|root dir|-.
+        ||        | |
+.--------|        |-'
+|       |'--------'
+|       '---|--|-'
+|        .-'    '-------------.
+|       v                      v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  ||        | || orphan!| ||        |
+  ||        | ||        | ||        |
+  |'--------' |'--------' |'--------'
+  '--------'  '--------'  '--------'
+
+remove dir B from threaded linked-list, returning dir B to free blocks
+=>
+         .--------.
+        .|root dir|-.
+        ||        | |
+.--------|        |-'
+|       |'--------'
+|       '---|--|-'
+|        .-'    '-.
+|       v          v
+|  .--------.  .--------.
+'->| dir A  |->| dir C  |
+  ||        | ||        |
+  ||        | ||        |
+  |'--------' |'--------'
+  '--------'  '--------'
+```
 
 In addition to normal directory tree operations, we can use orphans to evict
 blocks in a metadata pair when the block goes bad or exceeds its allocated
@@ -1718,7 +1884,117 @@ a situation where the filesystem references the replacement block while the
 threaded linked-list still contains the evicted block. We call this a
 half-orphan.
 
-<!-- pic here -->
+```
+               .--------.
+              .|root dir|-.
+              ||        | |
+.--------------|        |-'
+|             |'--------'
+|             '--|-|-|-'
+|        .------'  |  '-------.
+|       v          v           v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  ||        | ||        | ||        |
+  ||        | ||        | ||        |
+  |'--------' |'--------' |'--------'
+  '--------'  '--------'  '--------'
+
+try to write to dir B
+=>
+                  .--------.
+                 .|root dir|-.
+                 ||        | |
+.-----------------|        |-'
+|                |'--------'
+|                '-|-||-|-'
+|        .--------'  ||  '-------.
+|       v            |v           v
+|  .--------.     .--------.    .--------.
+'->| dir A  |---->| dir B  |--->| dir C  |
+  ||        |-.   |        |   ||        |
+  ||        | |   |        |   ||        |
+  |'--------' |   '--------'   |'--------'
+  '--------'  |      v         '--------'
+              |  .--------.
+              '->| dir B  |
+                 | bad    |
+                 | block! |
+                 '--------'
+
+oh no! bad block detected, allocate replacement
+=>
+                  .--------.
+                 .|root dir|-.
+                 ||        | |
+.-----------------|        |-'
+|                |'--------'
+|                '-|-||-|-'
+|        .--------'  ||  '-------.
+|       v            |v           v
+|  .--------.     .--------.    .--------.
+'->| dir A  |---->| dir B  |--->| dir C  |
+  ||        |-.   |        | .->|        |
+  ||        | |   |        | | ||        |
+  |'--------' |   '--------' | |'--------'
+  '--------'  |      v       | '--------'
+              |  .--------.  |
+              '->| dir B  |  |
+                 | bad    |  |
+                 | block! |  |
+                 '--------'  | 
+                             |
+                 .--------.  |
+                 | dir B  |--'
+                 |        |
+                 |        |
+                 '--------'
+
+insert replacement in threaded linked-list, creating a half-orphan
+=>
+                  .--------.
+                 .|root dir|-.
+                 ||        | |
+.-----------------|        |-'
+|                |'--------'
+|                '-|-||-|-'
+|        .--------'  ||  '-------.
+|       v            |v           v
+|  .--------.     .--------.    .--------.
+'->| dir A  |---->| dir B  |--->| dir C  |
+  ||        |-.   |        | .->|        |
+  ||        | |   |        | | ||        |
+  |'--------' |   '--------' | |'--------'
+  '--------'  |      v       | '--------'
+              |  .--------.  |
+              |  | dir B  |  |
+              |  | bad    |  |
+              |  | block! |  |
+              |  '--------'  | 
+              |              |
+              |  .--------.  |
+              '->| dir B  |--'
+                 | half   |
+                 | orphan!|
+                 '--------'
+
+fix reference in parent directory
+=>
+                  .--------.
+                 .|root dir|-.
+                 ||        | |
+.-----------------|        |-'
+|                |'--------'
+|                '--|-|-|-'
+|        .---------'  |  '-------.
+|       v             v           v
+|  .--------.     .--------.    .--------.
+'->| dir A  |---->| dir B  |--->| dir C  |
+  ||        |    ||        |   ||        |
+  ||        |    ||        |   ||        |
+  |'--------'    |'--------'   |'--------'
+  '--------'     '--------'    '--------'
+```
 
 Finding orphans and half-orphans is expensive, requiring a _O(n&sup2;)_
 comparison of every metadata pair with every directory entry. But the tradeoff
@@ -1728,7 +2004,7 @@ boot, and a read-only littlefs can ignore the threaded linked-list entirely.
 
 If we only had some sort of global state, then we could also store a flag and
 avoid searching for orphans unless we knew we were specifically interrupted
-while manipulating the directory tree (this is foreshadowing).
+while manipulating the directory tree (foreshadowing!).
 
 ## The move problem
 
