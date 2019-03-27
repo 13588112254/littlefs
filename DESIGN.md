@@ -2054,14 +2054,47 @@ Global state exists as a set of deltas that are distributed across the metadata
 pairs in the filesystem. The actual global state can be built out of these
 deltas by xoring together all of the deltas in the filesystem.
 
-<!-- pic here -->
+```
+ .--------.  .--------.  .--------.  .--------.  .--------.
+.|        |->| gdelta |->|        |->| gdelta |->| gdelta |
+||        | || 0x23   | ||        | || 0xff   | || 0xce   |
+||        | ||        | ||        | ||        | ||        |
+|'--------' |'--------' |'--------' |'--------' |'--------'
+'--------'  '----|---'  '--------'  '----|---'  '----|---'
+                 v                       v           v
+       0x00 --> xor ------------------> xor ------> xor --> gstate 0x12
+```
 
 To update the global state from a metadata pair, we take the global state we
 know and xor it with both our changes and any existing delta in the metadata
 pair. Committing this new delta to the metadata pair commits the changes to
 the filesystem's global state.
 
-<!-- pic here -->
+```
+ .--------.  .--------.  .--------.  .--------.  .--------.
+.|        |->| gdelta |->|        |->| gdelta |->| gdelta |
+||        | || 0x23   | ||        | || 0xff   | || 0xce   |
+||        | ||        | ||        | ||        | ||        |
+|'--------' |'--------' |'--------' |'--------' |'--------'
+'--------'  '----|---'  '--------'  '--|---|-'  '----|---'
+                 v                     v   |         v
+       0x00 --> xor ----------------> xor -|------> xor --> gstate 0x12
+                                           |                        |
+                                           |                        |
+change gstate to 0xab --> xor <------------|------------------------'
+=>                         |               v
+                           '------------> xor
+                                           |
+                                           v
+ .--------.  .--------.  .--------.  .--------.  .--------.
+.|        |->| gdelta |->|        |->| gdelta |->| gdelta |
+||        | || 0x23   | ||        | || 0x46   | || 0xce   |
+||        | ||        | ||        | ||        | ||        |
+|'--------' |'--------' |'--------' |'--------' |'--------'
+'--------'  '----|---'  '--------'  '----|---'  '----|---'
+                 v                       v           v
+       0x00 --> xor ------------------> xor ------> xor --> gstate 0xab
+```
 
 To make this efficient, we always keep a copy of the global state in RAM. We
 only need to iterate over our metadata pairs and build the global state when
