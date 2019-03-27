@@ -1318,8 +1318,6 @@ may be able to modify the idea into a workable solution.
 |        |        |        |        |        |                 |        |
 |        |        |        |        |        |                 |        |
 '--------'--------'--------'--------'--------'--------'--------'--------'
-    |        |        |        |        |        |        |        |
-    v        v        v        v        v        v        v        v
 
     1        0        1        1        1        0        0        1
 
@@ -1420,23 +1418,23 @@ sized data.
 Read errors, on the other hand, are quite a bit more complicated. We don't have
 a copy of the data lingering around in RAM, so we need a way to reconstruct the
 original data even after it has been corrupted. One such mechanism for this is
-error-correction-codes (ECC) <!-- TODO link me? -->.
+[error-correction-codes (ECC)][wikipedia-ecc].
 
 ECC is an extension to the idea of a checksum. Where a checksum such as CRC can
 detect that an error has occured in the data, ECC can detect and actually
 correct some amount of errors. However, there is a limit to how many errors ECC
-can detect, call the [Hammond bound](https://en.wikipedia.org/wiki/Hamming_bound).
-As the number of errors approaches the Hammond bound, we may still be able to
-detect errors, but can no longer fix the data. If we've reached this point the
-block is unrecoverable.
+can detect, call the [Hamming bound][wikipedia-hamming-bound]. As the number of
+errors approaches the Hamming bound, we may still be able to detect errors, but
+can no longer fix the data. If we've reached this point the block is
+unrecoverable.
 
 <!-- pic here? -->
 
-littlefs by itself does **not** (currently) use ECC. The block nature and
+littlefs by itself does **not** (currently) provide ECC. The block nature and
 relatively large footprint of ECC does not work well with the dynamically
 sized data of filesystems, and ECC fits surprisingly well with the geometry of
-block devices. In fact, most flash chips have extra storage intended for ECC,
-and many NAND chips even calculate ECC on the chip itself.
+block devices. In fact, several flash chips have extra storage intended for
+ECC, and many NAND chips even calculate ECC on the chip itself.
 
 In littlefs, ECC is entirely optional. Read errors can instead be prevented
 proactively by wear-leveling. But it's important to note that ECC can be used
@@ -1624,6 +1622,8 @@ The first step: How do we actually store our files?
 We've determined that CTZ skip-lists are pretty good at storing data compactly,
 so following the precedent found in other filesystems we could give each file
 a skip-list stored in a metadata pair that acts as an inode for the file.
+
+<!-- pic here? -->
 
 However, this doesn't work well when files are small, which is common for
 embedded systems. Compared to PCs, _all_ data in an embedded system is small.
@@ -2475,6 +2475,8 @@ And that's littlefs, thanks for reading!
 [wikipedia-B-tree]: https://en.wikipedia.org/wiki/B-tree
 [wikipedia-B+-tree]: https://en.wikipedia.org/wiki/B%2B_tree
 [wikipedia-ctz]: https://en.wikipedia.org/wiki/Count_trailing_zeros
+[wikipedia-ecc]: https://en.wikipedia.org/wiki/Error_correction_code
+[wikipedia-hamming-bound]: https://en.wikipedia.org/wiki/Hamming_bound
 
 [oeis]: https://oeis.org
 [A001511]: https://oeis.org/A001511
