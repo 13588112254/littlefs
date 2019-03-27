@@ -2294,8 +2294,8 @@ complete move, remove reference in root, change gstate to no move
 Global state gives us a powerful tool we can use to solve the move problem.
 And the result is surprisingly performant, only needing the minimum number
 of states and using the same number of commits as a naive move. Additionally,
-global state gives us a bit of persistent state we can use for small
-improvements.
+global state gives us a bit of persistent state we can use for some other
+small improvements.
 
 **- old below -**
 
