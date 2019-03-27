@@ -374,7 +374,8 @@ also gives us a rough idea of how many erases have occured on the block.
 
 ```
 metadata pair pointer: {block 0, block 1}
-                           '--.     '--------------------.
+                           |        '--------------------.
+                            '-.                           |
 disk                           v                          v
 .--------.--------.--------.--------.--------.--------.--------.--------.
 |                 |        |metadata|                 |metadata|        |
@@ -384,7 +385,7 @@ disk                           v                          v
                                '--.                  .----'
                                    v                v
              metadata pair .----------------.----------------.
-                           |  revision: 11  |  revision: 12  |
+                           |   revision 11  |   revision 12  |
              block 1 is    |----------------|----------------|
              most recent   |       A        |       A''      |
                            |----------------|----------------|
@@ -414,7 +415,7 @@ multiple stages.
    ```
                                     commit A
    .----------------.----------------.    .----------------.----------------.
-   |  revision: 1   |  revision: 0   | => |  revision: 1   |  revision: 0   |
+   |   revision 1   |   revision 0   | => |   revision 1   |   revision 0   |
    |----------------|----------------|    |----------------|----------------|
    |       |        |                |    |       A        |                |
    |       v        |                |    |----------------|                |
@@ -438,7 +439,7 @@ multiple stages.
    ```
                                  commit B and A'
    .----------------.----------------.    .----------------.----------------.
-   |  revision: 1   |  revision: 0   | => |  revision: 1   |  revision: 0   |
+   |   revision 1   |   revision 0   | => |   revision 1   |   revision 0   |
    |----------------|----------------|    |----------------|----------------|
    |       A        |                |    |       A        |                |
    |----------------|                |    |----------------|                |
@@ -474,7 +475,7 @@ multiple stages.
    ```
                            commit B', need to compact
    .----------------.----------------.    .----------------.----------------.
-   |  revision: 1   |  revision: 0   | => |  revision: 1   |  revision: 2   |
+   |   revision 1   |   revision 0   | => |   revision 1   |   revision 2   |
    |----------------|----------------|    |----------------|----------------|
    |       A        |                |    |       A        |       A'       |
    |----------------|                |    |----------------|----------------|
@@ -509,7 +510,7 @@ multiple stages.
    ```
                          commit C and D, need to split
    .----------------.----------------.    .----------------.----------------.
-   |  revision: 1   |  revision: 2   | => |  revision: 3   |  revision: 2   |
+   |   revision 1   |   revision 2   | => |   revision 3   |   revision 2   |
    |----------------|----------------|    |----------------|----------------|
    |       A        |       A'       |    |       A'       |       A'       |
    |----------------|----------------|    |----------------|----------------|
@@ -525,7 +526,7 @@ multiple stages.
                                                    .----------------.---------'
                                                   v                v
                                           .----------------.----------------.  
-                                          |  revision: 1   |  revision: 0   |  
+                                          |   revision 1   |   revision 0   |  
                                           |----------------|----------------|
                                           |       C        |                |
                                           |----------------|                |
@@ -667,7 +668,7 @@ Fortunately we can do better. Instead of a singly linked list, littlefs
 uses a multilayered linked-list often called a skip-list. However, unlike
 the most common type of skip-list, littlefs's skip-lists are strictly
 deterministic built around some interesting properties of the
-[count-trailing-zeros (CTZ) instruction][wikipedia-ctz].
+[count-trailing-zeros (CTZ)][wikipedia-ctz] instruction.
 
 The rules CTZ skip-lists follow are that for every _n_&zwj;th block where _n_
 is divisible by 2&zwj;_&#739;_, that block contains a pointer to block
@@ -741,16 +742,16 @@ series. Solving this tells us that on average our storage overhead is only
 Because our file size is limited the word width we use to store sizes, we can
 also solve for the maximum number of pointers we would ever need to store in a
 block. If we set the overhead of pointers equal to the block size, we get the
-following equation. Note that both a smaller block size (![B][B]) and larger
+following equation. Note that both a smaller block size (![B][bigB]) and larger
 word width (![w][w]) result in more storage overhead.
 
 ![B = (w/8)ceil(log2(2^w / (B-2w/8)))][ctz-formula2]
 
-Solving the equation for ![B][B] gives us the minimum block size for some
+Solving the equation for ![B][bigB] gives us the minimum block size for some
 common word widths:
 
-- 32-bit CTZ skip-list => minimum block size of 104 bytes
-- 64-bit CTZ skip-list => minimum block size of 448 bytes
+1. 32-bit CTZ skip-list => minimum block size of 104 bytes
+2. 64-bit CTZ skip-list => minimum block size of 448 bytes
 
 littlefs uses a 32-bit word width, so our blocks can only overflow with
 pointers if they are smaller than 104 bytes. This is an easy requirement, as
@@ -765,9 +766,9 @@ index + offset pair. So in theory we can store only a single pointer and size.
 
 However, calculating the index + offset pair from the size is a bit
 complicated. We can start with a summation that loops through all of the blocks
-up until our given size. Let ![B][B] be the block size in bytes, ![w][w] be the
-word width in bits, ![n][n] be the index of the block in the skip-list, and
-![N][N] be the file size in bytes:
+up until our given size. Let ![B][bigB] be the block size in bytes, ![w][w] be
+the word width in bits, ![n][n] be the index of the block in the skip-list, and
+![N][bigN] be the file size in bytes:
 
 ![N = sum,i,0->n(B-(w/8)(ctz(i)+1))][ctz-formula3]
 
@@ -778,8 +779,8 @@ doesn't need to touch the disk, so the practical impact is minimal.
 However, despite the integration of a bitwise operation, we can actually reduce
 this equation to a _O(1)_ form.  While browsing the amazing resource that is
 the [On-Line Encyclopedia of Integer Sequences (OEIS)][oeis], I managed to find
-[A001511][oeis-A001511], which matches the iteration of the CTZ instruction,
-and [A005187][oeis-A005187], which matches its partial summation. Much to my
+[A001511], which matches the iteration of the CTZ instruction,
+and [A005187], which matches its partial summation. Much to my
 surprise, these both result from simple equations, leading us to a rather
 unintuitive property that ties together two seemingly unrelated bitwise
 instructions:
@@ -788,14 +789,14 @@ instructions:
 
 where:
 
-- ctz(![x][x]) = the number of trailing bits that are 0 in ![x][x]
-- popcount(![x][x]) = the number of bits that are 1 in ![x][x]
+1. ctz(![x]) = the number of trailing bits that are 0 in ![x]
+2. popcount(![x]) = the number of bits that are 1 in ![x]
 
-Initial tests of this surprising property seem to hold. As n approaches
+Initial tests of this surprising property seem to hold. As ![n][n] approaches
 infinity, we end up with an average overhead of 2 pointers, which matches what
 our assumption from earlier. During iteration, the popcount function seems to
-handle deviations from this average. And just to make sure, I wrote a quick
-script that verified this property for all 32-bit integers.
+handle deviations from this average. Of course, just to make sure I wrote a
+quick script that verified this property for all 32-bit integers.
 
 Now we can substitute into our original equation to find a more efficient
 equation for file size:
@@ -828,6 +829,7 @@ these operations work in a bounded amount of RAM and require only two words of
 storage overhead per block. In combination with metadata pairs, CTZ skip-lists
 provide power resilience and compact storage of data.
 
+*- scratch below -*
 
 <!-- maybe no? Here is what it might look like to update a file stored with a CTZ skip-list: -->
 
@@ -1257,6 +1259,35 @@ littlefs takes a cautious approach. Instead of trusting a free list on disk,
 littlefs relies on the fact that the filesystem on disk is a mirror image of
 the free blocks on the disk. The block allocator operates much like a garbage
 collector in a scripting language, scanning for unused blocks on demand.
+
+
+```
+metadata pair pointer: {block 0, block 1}
+                           |        '--------------------.
+                            '-.                           |
+disk                           v                          v
+.--------.--------.--------.--------.--------.--------.--------.--------.
+|                 |        |metadata|                 |metadata|        |
+|                 |        |block 0 |                 |block 1 |        |
+|                 |        |        |                 |        |        |
+'--------'--------'--------'--------'--------'--------'--------'--------'
+                               '--.                  .----'
+                                   v                v
+             metadata pair .----------------.----------------.
+                           |   revision 11  |   revision 12  |
+             block 1 is    |----------------|----------------|
+             most recent   |       A        |       A''      |
+                           |----------------|----------------|
+                           |      CRC       |      CRC       |
+                           |----------------|----------------|
+                           |       B        |       A'''     | <- most recent A
+                           |----------------|----------------|
+                           |       A''      |      CRC       |
+                           |----------------|----------------|
+                           |      CRC       |       |        |
+                           |----------------|       v        |
+                           '----------------'----------------'
+```
 
 While this approach may sound complicated, the decision to not maintain a free
 list greatly simplifies the overall design of littlefs. Unlike programming
@@ -2427,8 +2458,8 @@ And that's littlefs, thanks for reading!
 [wikipedia-ctz]: https://en.wikipedia.org/wiki/Count_trailing_zeros
 
 [oeis]: https://oeis.org
-[oeis-A001511]: https://oeis.org/A001511
-[oeis-A005187]: https://oeis.org/A005187
+[A001511]: https://oeis.org/A001511
+[A005187]: https://oeis.org/A005187
 
 [fat]: https://en.wikipedia.org/wiki/Design_of_the_FAT_file_system
 [ext2]: http://e2fsprogs.sourceforge.net/ext2intro.html
@@ -2454,10 +2485,10 @@ And that's littlefs, thanks for reading!
 [ctz-formula6]: https://latex.codecogs.com/svg.latex?n%20%3D%20%5Cleft%5Clfloor%5Cfrac%7BN-%5Cfrac%7Bw%7D%7B8%7D%5Cleft%28%5Ctext%7Bpopcount%7D%5Cleft%28%5Cfrac%7BN%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D-1%5Cright%29&plus;2%5Cright%29%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D%5Cright%5Crfloor
 [ctz-formula7]: https://latex.codecogs.com/svg.latex?%5Cmathit%7Boff%7D%20%3D%20N%20-%20%5Cleft%28B-2%5Cfrac%7Bw%7D%7B8%7D%5Cright%29n%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Ctext%7Bpopcount%7D%28n%29
 
-[B]: https://latex.codecogs.com/svg.latex?B
+[bigB]: https://latex.codecogs.com/svg.latex?B
 [d]: https://latex.codecogs.com/svg.latex?d
 [m]: https://latex.codecogs.com/svg.latex?m
-[N]: https://latex.codecogs.com/svg.latex?N
+[bigN]: https://latex.codecogs.com/svg.latex?N
 [n]: https://latex.codecogs.com/svg.latex?n
 [n']: https://latex.codecogs.com/svg.latex?n%27
 [r]: https://latex.codecogs.com/svg.latex?r
