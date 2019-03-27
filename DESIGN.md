@@ -525,8 +525,8 @@ multiple stages.
    '----------------'----------------'    '----------------'----------------' |
                                                    .----------------.---------'
                                                   v                v
-                                          .----------------.----------------.  
-                                          |   revision 1   |   revision 0   |  
+                                          .----------------.----------------.
+                                          |   revision 1   |   revision 0   |
                                           |----------------|----------------|
                                           |       C        |                |
                                           |----------------|                |
@@ -1679,7 +1679,7 @@ like what you find on other filesystems.
 
 ```
             .--------.
-           .|  root  |
+           .| root   |
            ||        |
            ||        |
            |'--------'
@@ -1712,9 +1712,9 @@ over the entire filesystem.
 
 ```
             .--------.
-           .|  root  |-.
+           .| root   |-.
            ||        | |
-   .--------|        |-'
+   .-------||        |-'
    |       |'--------'
    |       '---|--|-'
    |        .-'    '-------------------------.
@@ -1751,9 +1751,9 @@ Adding a directory to our tree:
 
 ```
          .--------.
-        .|root dir|-.
+        .| root   |-.
         ||        | |
-.--------|        |-'
+.-------||        |-'
 |       |'--------'
 |       '---|--|-'
 |        .-'    '-.
@@ -1768,9 +1768,9 @@ Adding a directory to our tree:
 allocate dir B
 =>
          .--------.
-        .|root dir|-.
+        .| root   |-.
         ||        | |
-.--------|        |-'
+.-------||        |-'
 |       |'--------'
 |       '---|--|-'
 |        .-'    '-.
@@ -1787,14 +1787,14 @@ allocate dir B
   ||        |
   ||        |
   |'--------'
-  '--------' 
+  '--------'
 
 insert dir B into threaded linked-list, creating an orphan
 =>
          .--------.
-        .|root dir|-.
+        .| root   |-.
         ||        | |
-.--------|        |-'
+.-------||        |-'
 |       |'--------'
 |       '---|--|-'
 |        .-'    '-------------.
@@ -1809,9 +1809,9 @@ insert dir B into threaded linked-list, creating an orphan
 add dir B to parent directory
 =>
                .--------.
-              .|root dir|-.
+              .| root   |-.
               ||        | |
-.--------------|        |-'
+.-------------||        |-'
 |             |'--------'
 |             '--|-|-|-'
 |        .------'  |  '-------.
@@ -1828,9 +1828,9 @@ Removing a directory:
 
 ```
                .--------.
-              .|root dir|-.
+              .| root   |-.
               ||        | |
-.--------------|        |-'
+.-------------||        |-'
 |             |'--------'
 |             '--|-|-|-'
 |        .------'  |  '-------.
@@ -1845,9 +1845,9 @@ Removing a directory:
 remove dir B from parent directory, creating an orphan
 =>
          .--------.
-        .|root dir|-.
+        .| root   |-.
         ||        | |
-.--------|        |-'
+.-------||        |-'
 |       |'--------'
 |       '---|--|-'
 |        .-'    '-------------.
@@ -1862,9 +1862,9 @@ remove dir B from parent directory, creating an orphan
 remove dir B from threaded linked-list, returning dir B to free blocks
 =>
          .--------.
-        .|root dir|-.
+        .| root   |-.
         ||        | |
-.--------|        |-'
+.-------||        |-'
 |       |'--------'
 |       '---|--|-'
 |        .-'    '-.
@@ -1886,9 +1886,9 @@ half-orphan.
 
 ```
                .--------.
-              .|root dir|-.
+              .| root   |-.
               ||        | |
-.--------------|        |-'
+.-------------||        |-'
 |             |'--------'
 |             '--|-|-|-'
 |        .------'  |  '-------.
@@ -1903,19 +1903,19 @@ half-orphan.
 try to write to dir B
 =>
                   .--------.
-                 .|root dir|-.
+                 .| root   |-.
                  ||        | |
-.-----------------|        |-'
+.----------------||        |-'
 |                |'--------'
 |                '-|-||-|-'
-|        .--------'  ||  '-------.
-|       v            |v           v
-|  .--------.     .--------.    .--------.
-'->| dir A  |---->| dir B  |--->| dir C  |
-  ||        |-.   |        |   ||        |
-  ||        | |   |        |   ||        |
-  |'--------' |   '--------'   |'--------'
-  '--------'  |      v         '--------'
+|        .--------'  ||  '-----.
+|       v            |v         v
+|  .--------.     .--------.  .--------.
+'->| dir A  |---->| dir B  |->| dir C  |
+  ||        |-.   |        | ||        |
+  ||        | |   |        | ||        |
+  |'--------' |   '--------' |'--------'
+  '--------'  |      v       '--------'
               |  .--------.
               '->| dir B  |
                  | bad    |
@@ -1925,9 +1925,9 @@ try to write to dir B
 oh no! bad block detected, allocate replacement
 =>
                   .--------.
-                 .|root dir|-.
+                 .| root   |-.
                  ||        | |
-.-----------------|        |-'
+.----------------||        |-'
 |                |'--------'
 |                '-|-||-|-'
 |        .--------'  ||  '-------.
@@ -1942,7 +1942,7 @@ oh no! bad block detected, allocate replacement
               '->| dir B  |  |
                  | bad    |  |
                  | block! |  |
-                 '--------'  | 
+                 '--------'  |
                              |
                  .--------.  |
                  | dir B  |--'
@@ -1953,9 +1953,9 @@ oh no! bad block detected, allocate replacement
 insert replacement in threaded linked-list, creating a half-orphan
 =>
                   .--------.
-                 .|root dir|-.
+                 .| root   |-.
                  ||        | |
-.-----------------|        |-'
+.----------------||        |-'
 |                |'--------'
 |                '-|-||-|-'
 |        .--------'  ||  '-------.
@@ -1970,7 +1970,7 @@ insert replacement in threaded linked-list, creating a half-orphan
               |  | dir B  |  |
               |  | bad    |  |
               |  | block! |  |
-              |  '--------'  | 
+              |  '--------'  |
               |              |
               |  .--------.  |
               '->| dir B  |--'
@@ -1980,20 +1980,20 @@ insert replacement in threaded linked-list, creating a half-orphan
 
 fix reference in parent directory
 =>
-                  .--------.
-                 .|root dir|-.
-                 ||        | |
-.-----------------|        |-'
-|                |'--------'
-|                '--|-|-|-'
-|        .---------'  |  '-------.
-|       v             v           v
-|  .--------.     .--------.    .--------.
-'->| dir A  |---->| dir B  |--->| dir C  |
-  ||        |    ||        |   ||        |
-  ||        |    ||        |   ||        |
-  |'--------'    |'--------'   |'--------'
-  '--------'     '--------'    '--------'
+               .--------.
+              .| root   |-.
+              ||        | |
+.-------------||        |-'
+|             |'--------'
+|             '--|-|-|-'
+|        .------'  |  '-------.
+|       v          v           v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  ||        | ||        | ||        |
+  ||        | ||        | ||        |
+  |'--------' |'--------' |'--------'
+  '--------'  '--------'  '--------'
 ```
 
 Finding orphans and half-orphans is expensive, requiring a _O(n&sup2;)_
@@ -2113,15 +2113,183 @@ Now we can solve the move problem. We can create global state describing our
 move atomically with the creation of the new file, and we can clear this move
 state atomically with the removal of the old file.
 
-<!-- pic here -->
+```
+               .--------.    gstate = no move
+              .| root   |-.
+              ||        | |
+.-------------||        |-'
+|             |'--------'
+|             '--|-|-|-'
+|        .------'  |  '-------.
+|       v          v           v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  ||        | ||        | ||        |
+  ||        | ||        | ||        |
+  |'--------' |'--------' |'--------'
+  '----|---'  '--------'  '--------'
+       v
+   .--------.
+   | file D |
+   |        |
+   |        |
+   '--------'
+
+begin move, add reference in dir C, change gstate to have move
+=>
+               .--------.    gstate = moving file D in dir A (m1)
+              .| root   |-.
+              ||        | |
+.-------------||        |-'
+|             |'--------'
+|             '--|-|-|-'
+|        .------'  |  '-------.
+|       v          v           v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  ||        | ||        | || gdelta |
+  ||        | ||        | || =m1    |
+  |'--------' |'--------' |'--------'
+  '----|---'  '--------'  '----|---'
+       |     .----------------'
+       v    v
+     .--------.
+     | file D |
+     |        |
+     |        |
+     '--------'
+
+complete move, remove reference in dir A, change gstate to no move
+=>
+               .--------.    gstate = no move (m1^~m1)
+              .| root   |-.
+              ||        | |
+.-------------||        |-'
+|             |'--------'
+|             '--|-|-|-'
+|        .------'  |  '-------.
+|       v          v           v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  || gdelta | ||        | || gdelta |
+  || =~m1   | ||        | || =m1    |
+  |'--------' |'--------' |'--------'
+  '--------'  '--------'  '----|---'
+                               v
+                           .--------.
+                           | file D |
+                           |        |
+                           |        |
+                           '--------'
+```
+
 
 If, after building our global state during mount, we find information
 describing an ongoing move, we know we lost power during a move and the file
 is duplicated in both the source and destination directories. If this happens,
 we can resolve the move using the information in the global state to remove
-on of the files.
+one of the files.
 
-<!-- pic here? -->
+```
+               .--------.    gstate = moving file D in dir A (m1)
+              .| root   |-.                   ^
+              ||        |..................> xor
+.-------------||        |-'                   ^
+|             |'--------'                     .
+|             '--|-|-|-'                      .
+|        .------'  |  '-------.               .
+|       v          v           v              .
+|  .--------.  .--------.  .--------.         .
+'->| dir A  |->| dir B  |->| dir C  |         .
+  ||        |..|        |..| gdelta |.........
+  ||        | ||        | || =m1    |
+  |'--------' |'--------' |'--------'
+  '----|---'  '--------'  '----|---'
+       |     .----------------'
+       v    v
+     .--------.
+     | file D |
+     |        |
+     |        |
+     '--------'
+```
+
+We can also move directories the same way we move files. There is the threaded
+linked-list to consider, but leaving the threaded linked-list unchanged works
+fine as the order doesn't really matter.
+
+```
+               .--------.    gstate = no move (m1^~m1)
+              .| root   |-.
+              ||        | |
+.-------------||        |-'
+|             |'--------'
+|             '--|-|-|-'
+|        .------'  |  '-------.
+|       v          v           v
+|  .--------.  .--------.  .--------.
+'->| dir A  |->| dir B  |->| dir C  |
+  || gdelta | ||        | || gdelta |
+  || =~m1   | ||        | || =m1    |
+  |'--------' |'--------' |'--------'
+  '--------'  '--------'  '----|---'
+                               v
+                           .--------.
+                           | file D |
+                           |        |
+                           |        |
+                           '--------'
+
+begin move, add reference in dir C, change gstate to have move
+=>
+                .--------.    gstate = moving dir B in root (m1^~m1^m2)
+               .| root   |-.
+               ||        | |
+.--------------||        |-'
+|              |'--------'
+|              '--|-|-|-'
+|        .-------'  |  '----------.
+|       v           |              v
+|  .--------.       |          .--------.
+'->| dir A  |-.     |       .->| dir C  |
+  || gdelta | |     |       | || gdelta |
+  || =~m1   | |     |       | || =m1^m2 |
+  |'--------' |     |       | |'--------'
+  '--------'  |     |       | '---|--|-'
+              |     |    .-------'   |
+              |     v   v   |        v
+              |  .--------. |    .--------.
+              '->| dir B  |-'    | file D |
+                ||        |      |        |
+                ||        |      |        |
+                |'--------'      '--------'
+                '--------'
+
+complete move, remove reference in root, change gstate to no move
+=>
+             .--------.    gstate = no move (m1^~m1^m2^~m2)
+            .| root   |-.
+            || gdelta | |
+.-----------|| =~m2   |-'
+|           |'--------'
+|           '---|--|-'
+|        .-----'    '-----.
+|       v                  v
+|  .--------.          .--------.
+'->| dir A  |-.     .->| dir C  |
+  || gdelta | |     | || gdelta |
+  || =~m1   | |     '-|| =m1^m2 |-------.
+  |'--------' |       |'--------'       |
+  '--------'  |       '---|--|-'        |
+              |        .-'    '-.       |
+              |       v          v      |
+              |  .--------.  .--------. |
+              '->| dir B  |--| file D |-'
+                ||        |  |        |
+                ||        |  |        |
+                |'--------'  '--------'
+                '--------'
+```
 
 Global state gives us a powerful tool we can use to solve the move problem.
 And the result is surprisingly performant, only needing the minimum number
