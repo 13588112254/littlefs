@@ -1260,33 +1260,35 @@ littlefs relies on the fact that the filesystem on disk is a mirror image of
 the free blocks on the disk. The block allocator operates much like a garbage
 collector in a scripting language, scanning for unused blocks on demand.
 
-
 ```
-metadata pair pointer: {block 0, block 1}
-                           |        '--------------------.
-                            '-.                           |
-disk                           v                          v
+                  .--------.
+                  |  root  |
+                  |        |
+                  |        |
+                  '--------'
+      .-------------'    '-------------.
+     v            .        .            v
+.--------.        .        .        .--------.
+|   A    |        .        .        |   B    |
+|        |        .        .        |        |
+|        |        .        .        |        |
+'--------'        .        .        '--------'
+.        .        .        .     .----'    '----------------------.
+.        .        .        .    v   .        .                     v
+.        .        .        .--------.        .                 .--------.
+.        .        .        |   D    |        .                 |   E    |
+.        .        .        |        |        .                 |        |
+.        .        .        |        |        .                 |        |
+.        .        .        '--------'        .                 '--------'
+.        .        .        .        .        .                 .        .
+.        .        .        .        .        .                 .        .
 .--------.--------.--------.--------.--------.--------.--------.--------.
-|                 |        |metadata|                 |metadata|        |
-|                 |        |block 0 |                 |block 1 |        |
-|                 |        |        |                 |        |        |
+|   A    |        |  root  |   D    |   B    |                 |   E    |
+|        |        |        |        |        |                 |        |
+|        |        |        |        |        |                 |        |
 '--------'--------'--------'--------'--------'--------'--------'--------'
-                               '--.                  .----'
-                                   v                v
-             metadata pair .----------------.----------------.
-                           |   revision 11  |   revision 12  |
-             block 1 is    |----------------|----------------|
-             most recent   |       A        |       A''      |
-                           |----------------|----------------|
-                           |      CRC       |      CRC       |
-                           |----------------|----------------|
-                           |       B        |       A'''     | <- most recent A
-                           |----------------|----------------|
-                           |       A''      |      CRC       |
-                           |----------------|----------------|
-                           |      CRC       |       |        |
-                           |----------------|       v        |
-                           '----------------'----------------'
+             ^                                   ^        ^
+              '-----------------------------------'--------'-- free blocks
 ```
 
 While this approach may sound complicated, the decision to not maintain a free
@@ -1309,6 +1311,23 @@ the floor" strategy actually store a bitmap of the entire storage in
 [RAM][ram]. This works well because bitmaps are surprisingly compact. We can't
 use the same strategy here, as it violates our constant RAM requirement, but we
 may be able to modify the idea into a workable solution.
+
+```
+.--------.--------.--------.--------.--------.--------.--------.--------.
+|   A    |        |  root  |   D    |   B    |                 |   E    |
+|        |        |        |        |        |                 |        |
+|        |        |        |        |        |                 |        |
+'--------'--------'--------'--------'--------'--------'--------'--------'
+    |        |        |        |        |        |        |        |
+    v        v        v        v        v        v        v        v
+
+    1        0        1        1        1        0        0        1
+
+    \-----------------------------+--------------------------------/
+                                  v
+
+                      bitmap: 0xb9 (0b10111001)
+```
 
 The block allocator in littlefs is a compromise between a disk-sized bitmap and
 a brute force traversal. Instead of a bitmap the size of storage, we keep track
