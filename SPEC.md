@@ -675,7 +675,7 @@ the xor-sum of these deltas.
 |'--------' |'--------' |'--------' |'--------' |'--------'
 '--------'  '----|---'  '--------'  '----|---'  '----|---'
                  v                       v           v
-       0x00 --> xor ------------------> xor ------> xor --> gstate 0x12
+       0x00 --> xor ------------------> xor ------> xor --> gstate = 0x12
 ```
 
 Note that storing globals this way is very expensive in terms of storage usage,
