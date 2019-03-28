@@ -829,73 +829,56 @@ these operations work in a bounded amount of RAM and require only two words of
 storage overhead per block. In combination with metadata pairs, CTZ skip-lists
 provide power resilience and compact storage of data.
 
-*- scratch below -*
-
-<!-- maybe no? Here is what it might look like to update a file stored with a CTZ skip-list: -->
-
 ```
-                                      block 1   block 2
-                                    .---------.---------.
-                                    | rev: 1  | rev: 0  |
-                                    | file: 6 | file: 0 |
-                                    | size: 4 | size: 0 |
-                                    | xor: 3  | xor: 0  |
-                                    '---------'---------'
-                                        |
+                                    .--------.
+                                   .|metadata|
+                                   ||        |
+                                   ||        |
+                                   |'--------'
+                                   '----|---'
                                         v
-  block 3     block 4     block 5     block 6
 .--------.  .--------.  .--------.  .--------.
 | data 0 |<-| data 1 |<-| data 2 |<-| data 3 |
 |        |<-|        |--|        |  |        |
 |        |  |        |  |        |  |        |
 '--------'  '--------'  '--------'  '--------'
 
-|  update data in file
-v
-
-                                      block 1   block 2
-                                    .---------.---------.
-                                    | rev: 1  | rev: 0  |
-                                    | file: 6 | file: 0 |
-                                    | size: 4 | size: 0 |
-                                    | xor: 3  | xor: 0  |
-                                    '---------'---------'
-                                        |
+write data to disk, create copies
+=>
+                                    .--------.
+                                   .|metadata|
+                                   ||        |
+                                   ||        |
+                                   |'--------'
+                                   '----|---'
                                         v
-  block 3     block 4     block 5     block 6
 .--------.  .--------.  .--------.  .--------.
-| data 0 |<-| data 1 |<-| old    |<-| old    |
-|        |<-|        |--| data 2 |  | data 3 |
+| data 0 |<-| data 1 |<-| data 2 |<-| data 3 |
+|        |<-|        |--|        |  |        |
 |        |  |        |  |        |  |        |
 '--------'  '--------'  '--------'  '--------'
      ^ ^           ^
-     | |           |      block 7     block 8     block 9    block 10
      | |           |    .--------.  .--------.  .--------.  .--------.
      | |           '----| new    |<-| new    |<-| new    |<-| new    |
      | '----------------| data 2 |<-| data 3 |--| data 4 |  | data 5 |
      '------------------|        |--|        |--|        |  |        |
                         '--------'  '--------'  '--------'  '--------'
 
-|  update metadata pair
-v
-
-                                                   block 1   block 2
-                                                 .---------.---------.
-                                                 | rev: 1  | rev: 2  |
-                                                 | file: 6 | file: 10|
-                                                 | size: 4 | size: 6 |
-                                                 | xor: 3  | xor: 14 |
-                                                 '---------'---------'
+commit to metadata pair
+=>
+                                                            .--------.
+                                                           .|new     |
+                                                           ||metadata|
+                                                           ||        |
+                                                           |'--------'
+                                                           '----|---'
                                                                 |
-                                                                |
-  block 3     block 4     block 5     block 6                   |
 .--------.  .--------.  .--------.  .--------.                  |
-| data 0 |<-| data 1 |<-| old    |<-| old    |                  |
-|        |<-|        |--| data 2 |  | data 3 |                  |
+| data 0 |<-| data 1 |<-| data 2 |<-| data 3 |                  |
+|        |<-|        |--|        |  |        |                  |
 |        |  |        |  |        |  |        |                  |
 '--------'  '--------'  '--------'  '--------'                  |
      ^ ^           ^                                            v
-     | |           |      block 7     block 8     block 9    block 10
      | |           |    .--------.  .--------.  .--------.  .--------.
      | |           '----| new    |<-| new    |<-| new    |<-| new    |
      | '----------------| data 2 |<-| data 3 |--| data 4 |  | data 5 |
@@ -1430,11 +1413,11 @@ unrecoverable.
 
 <!-- pic here? -->
 
-littlefs by itself does **not** (currently) provide ECC. The block nature and
-relatively large footprint of ECC does not work well with the dynamically
-sized data of filesystems, and ECC fits surprisingly well with the geometry of
-block devices. In fact, several flash chips have extra storage intended for
-ECC, and many NAND chips even calculate ECC on the chip itself.
+littlefs by itself does **not** provide ECC. The block nature and relatively
+large footprint of ECC does not work well with the dynamically sized data of
+filesystems, and ECC fits surprisingly well with the geometry of block devices.
+In fact, several NOR flash chips have extra storage intended for ECC, and many
+NAND chips can even calculate ECC on the chip itself.
 
 In littlefs, ECC is entirely optional. Read errors can instead be prevented
 proactively by wear-leveling. But it's important to note that ECC can be used
@@ -1498,7 +1481,32 @@ We can actually use the data on disk to directly drive our random number
 generator. In practice, this is implimented by xoring the checksums of each
 metadata pair, which is already calculated to fetch and mount the filesystem.
 
-<!-- pic here -->
+```
+            .--------. \                         probably random
+           .|metadata| |                                ^
+           ||        | +-> crc ----------------------> xor
+           ||        | |                                ^
+           |'--------' /                                |
+           '---|--|-'                                   |
+            .-'    '-------------------------.          |
+           |                                  |         |
+           |        .--------------> xor ------------> xor
+           |        |                 ^       |         ^
+           v       crc               crc      v        crc   
+      .--------. \  ^   .--------. \  ^   .--------. \  ^
+     .|metadata|-|--|-->|metadata| |  |  .|metadata| |  |
+     ||        | +--'  ||        | +--'  ||        | +--'
+     ||        | |     ||        | |     ||        | |      
+     |'--------' /     |'--------' /     |'--------' /      
+     '---|--|-'        '----|---'        '---|--|-'        
+      .-'    '-.            |             .-'    '-.
+     v          v           v            v          v
+.--------.  .--------.  .--------.  .--------.  .--------.
+|  data  |  |  data  |  |  data  |  |  data  |  |  data  |
+|        |  |        |  |        |  |        |  |        |
+|        |  |        |  |        |  |        |  |        |
+'--------'  '--------'  '--------'  '--------'  '--------'
+```
 
 Note that this random number generator is not perfect. It only returns unique
 random numbers when the filesystem is modified. This is exactly what we want
@@ -1623,7 +1631,21 @@ We've determined that CTZ skip-lists are pretty good at storing data compactly,
 so following the precedent found in other filesystems we could give each file
 a skip-list stored in a metadata pair that acts as an inode for the file.
 
-<!-- pic here? -->
+
+```
+                                    .--------.
+                                   .|metadata|
+                                   ||        |
+                                   ||        |
+                                   |'--------'
+                                   '----|---'
+                                        v
+.--------.  .--------.  .--------.  .--------.
+| data 0 |<-| data 1 |<-| data 2 |<-| data 3 |
+|        |<-|        |--|        |  |        |
+|        |  |        |  |        |  |        |
+'--------'  '--------'  '--------'  '--------'
+```
 
 However, this doesn't work well when files are small, which is common for
 embedded systems. Compared to PCs, _all_ data in an embedded system is small.
@@ -1632,7 +1654,41 @@ Consider a small 4-byte file. With a two block metadata-pair and one block for
 the CTZ skip-list, we find ourselves using a full 3 blocks. On most NOR flash
 with 4 KiB blocks, this is 12 KiB of overhead. A ridiculous 3072x increase.
 
-<!-- pic here? -->
+```
+file stored as inode, 4 bytes costs ~12 KiB
+
+ .----------------.                  \
+.|    revision    |                  |
+||----------------|    \             |
+||    skiplist   ---.  +- metadata   |
+||----------------| |  /  4x8 bytes  |
+||      CRC       | |     32 bytes   |
+||----------------| |                |
+||       |        | |                +- metadata pair
+||       v        | |                |  2x4 KiB
+||                | |                |  8 KiB
+||                | |                |
+||                | |                |
+||                | |                |
+|'----------------' |                |
+'----------------'  |                /
+          .--------'
+         v
+ .----------------.    \             \
+ |      data      |    +- data       |
+ |----------------|    /  4 bytes    |
+ |                |                  |
+ |                |                  |
+ |                |                  |
+ |                |                  +- data block
+ |                |                  |  4 KiB
+ |                |                  |
+ |                |                  |
+ |                |                  |
+ |                |                  |
+ |                |                  |
+ '----------------'                  /
+```
 
 We can make several improvements. First, instead of giving each file its own
 metadata pair, we can store multiple files in a single metadata pair. One way
@@ -1645,7 +1701,41 @@ The strict binding of metadata pairs and directories also gives users
 direct control over storage utilization depending on how they organize their
 directories.
 
-<!-- pic here? -->
+```
+multiple files stored in metadata pair, 4 bytes costs ~4 KiB
+
+       .----------------.
+      .|    revision    |
+      ||----------------|
+      ||    A name      |
+      ||   A skiplist  -----.
+      ||----------------|   |  \
+      ||    B name      |   |  +- metadata
+      ||   B skiplist  ---. |  |  4x8 bytes
+      ||----------------| | |  /  32 bytes
+      ||      CRC       | | |
+      ||----------------| | |
+      ||       |        | | |
+      ||       v        | | |
+      |'----------------' | |
+      '----------------'  | |
+         .----------------' |
+        v                   v
+.----------------.  .----------------.  \           \
+|     A data     |  |     B data     |  +- data     |
+|                |  |----------------|  /  4 bytes  |
+|                |  |                |              |
+|                |  |                |              |
+|                |  |                |              |
+|                |  |                |              + data block
+|                |  |                |              | 4 KiB
+|                |  |                |              |
+|----------------|  |                |              |
+|                |  |                |              |
+|                |  |                |              |
+|                |  |                |              |
+'----------------'  '----------------'              /
+```
 
 The second improvement we can make is noticing that for very small files, our
 attempts to use CTZ skip-lists for compact storage backfires. Metadata pairs
@@ -1657,7 +1747,41 @@ We call this an inline file, and it allows a directory to store many small
 files quite efficiently. Our previous 4 byte file now only takes up a
 theoretical 16 bytes on disk.
 
-<!-- pic here? -->
+```
+inline files stored in metadata pair, 4 bytes costs ~16 bytes
+
+ .----------------.
+.|    revision    |
+||----------------|
+||    A name      |
+||   A skiplist  ---.
+||----------------| |  \
+||    B name      | |  +- data
+||    B data      | |  |  4x4 bytes
+||----------------| |  /  16 bytes
+||      CRC       | |  
+||----------------| |  
+||       |        | |  
+||       v        | |  
+|'----------------' |  
+'----------------'  |  
+          .---------'
+         v
+ .----------------.
+ |     A data     |
+ |                |
+ |                |
+ |                |
+ |                |
+ |                |
+ |                |
+ |                |
+ |----------------|
+ |                |
+ |                |
+ |                |
+ '----------------'
+```
 
 Once the file exceeds 1/4 the block size, we switch to a CTZ skip-list. This
 means that our files never use more than 4x storage overhead, decreasing as
@@ -2191,21 +2315,23 @@ we can resolve the move using the information in the global state to remove
 one of the files.
 
 ```
-               .--------.    gstate = moving file D in dir A (m1)
-              .| root   |-.                   ^
-              ||        |..................> xor
-.-------------||        |-'                   ^
-|             |'--------'                     .
-|             '--|-|-|-'                      .
-|        .------'  |  '-------.               .
-|       v          v           v              .
-|  .--------.  .--------.  .--------.         .
-'->| dir A  |->| dir B  |->| dir C  |         .
-  ||        |..|        |..| gdelta |.........
-  ||        | ||        | || =m1    |
-  |'--------' |'--------' |'--------'
-  '----|---'  '--------'  '----|---'
-       |     .----------------'
+                 .--------.    gstate = moving file D in dir A (m1)
+                .| root   |-.             ^
+                ||        |------------> xor
+.---------------||        |-'             ^
+|               |'--------'               |
+|               '--|-|-|-'                |
+|        .--------'  |  '---------.       |
+|       |            |             |      |
+|       |     .----------> xor --------> xor
+|       v     |      v      ^      v      ^
+|  .--------. |  .--------. |  .--------. |
+'->| dir A  |-|->| dir B  |-|->| dir C  | |
+  ||        |-' ||        |-' || gdelta |-'
+  ||        |   ||        |   || =m1    |
+  |'--------'   |'--------'   |'--------'
+  '----|---'    '--------'    '----|---'
+       |     .---------------------'
        v    v
      .--------.
      | file D |
