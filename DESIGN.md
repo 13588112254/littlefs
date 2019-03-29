@@ -1246,9 +1246,10 @@ unrecoverable.
 
 littlefs by itself does **not** provide ECC. The block nature and relatively
 large footprint of ECC does not work well with the dynamically sized data of
-filesystems, and ECC fits surprisingly well with the geometry of block devices.
-In fact, several NOR flash chips have extra storage intended for ECC, and many
-NAND chips can even calculate ECC on the chip itself.
+filesystems, correcting errors without RAM is complicated, and ECC fits better
+with the geometry of block devices. In fact, several NOR flash chips have extra
+storage intended for ECC, and many NAND chips can even calculate ECC on the
+chip itself.
 
 In littlefs, ECC is entirely optional. Read errors can instead be prevented
 proactively by wear leveling. But it's important to note that ECC can be used
