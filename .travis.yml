@@ -101,6 +101,7 @@ jobs:
       env:
         - STAGE=test
         - NAME=littlefs-fuse
+      if: branch !~ -prefix$
       install:
         - sudo apt-get install libfuse-dev
         - git clone --depth 1 https://github.com/geky/littlefs-fuse -b v2-alpha
@@ -132,7 +133,6 @@ jobs:
 
     # Automatically create releases
     - stage: deploy
-      if: branch = master AND type = push
       env:
         - STAGE=deploy
         - NAME=deploy
@@ -247,3 +247,4 @@ after_success:
 stages:
     - name: test
     - name: deploy
+      if: branch = master AND type = push
