@@ -65,17 +65,17 @@ This leaves us with three major requirements for an embedded filesystem.
 
 ## Existing designs?
 
-So what's already out there? There are, of course, many different filesystems,
+So, what's already out there? There are, of course, many different filesystems,
 however they often share and borrow feature from each other. If we look at
 power-loss resilience and wear leveling, we can narrow these down to a handful
 of designs.
 
-1. First we have the non-resilient, block based filesystems, such as [FAT][fat]
-   and [ext2][ext2]. These are the the earliest filesystem designs and often
-   the most simple. Here storage is divided into blocks, with each file being
-   stored in a collection of blocks. Without modifications, these filesystems
-   are not power-loss resilient, so updating a file is a simple as rewriting
-   the blocks in place.
+1. First we have the non-resilient, block based filesystems, such as [FAT] and
+   [ext2]. These are the earliest filesystem designs and often the most simple.
+   Here storage is divided into blocks, with each file being stored in a
+   collection of blocks. Without modifications, these filesystems are not
+   power-loss resilient, so updating a file is a simple as rewriting the blocks
+   in place.
 
    ```
                .--------.
@@ -105,12 +105,12 @@ of designs.
    ability to manage wear.
 
 2. In a completely different direction, we have logging filesystems, such as
-   [JFFS][jffs], [YAFFS][yaffs], and [SPIFFS][spiffs]. In a logging filesystem,
-   storage location is not bound to a piece of data, instead the entire storage
-   is used for a circular log which is appended with every change made to the
-   filesystem. Writing appends new changes, while reading requires traversing
-   the log to reconstruct a file. Some logging filesystems cache files to avoid
-   the read cost, but this comes at a tradeoff of RAM.
+   [JFFS], [YAFFS], and [SPIFFS], storage location is not bound to a piece of
+   data, instead the entire storage is used for a circular log which is
+   appended with every change made to the filesystem. Writing appends new
+   changes, while reading requires traversing the log to reconstruct a file.
+   Some logging filesystems cache files to avoid the read cost, but this comes
+   at a tradeoff of RAM.
 
    ```
                                                              v
@@ -139,9 +139,9 @@ of designs.
 
 3. Perhaps the most common type of filesystem, a journaling filesystem is the
    offspring that happens when you mate a block based filesystem with a logging
-   filesystem. [ext4][ext4] and [NTFS][ntfs] are good examples. Here, we take a
-   normal block based filesystem and add a bounded log where we note every
-   change before it occurs.
+   filesystem. [ext4] and [NTFS] are good examples. Here, we take a normal
+   block based filesystem and add a bounded log where we note every change
+   before it occurs.
 
    ```
                              journal
@@ -180,12 +180,11 @@ of designs.
    and data.
 
 4. Last but not least we have copy-on-write (COW) filesystems, such as
-   [btrfs][btrfs] and [ZFS][zfs]. These are very similar to other block based
-   filesystems, but instead of updating block inplace, all updates are
-   performed by creating a copy with the changes and replacing any references
-   to the old block with our new block. This recursively pushes all of our
-   problems upwards until we reach the root of our filesystem, which is often
-   stored in a very small log.
+   [btrfs] and [ZFS]. These are very similar to other block based filesystems,
+   but instead of updating block inplace, all updates are performed by creating
+   a copy with the changes and replacing any references to the old block with
+   our new block. This recursively pushes all of our problems upwards until we
+   reach the root of our filesystem, which is often stored in a very small log.
 
    ```
                .--------.                  .--------.
@@ -254,7 +253,7 @@ mutually solve each other's limitations.
 
 This is the idea behind littlefs. At the sub-block level, littlefs is built
 out of small, two blocks logs that provide atomic updates to metadata anywhere
-on the filesystem. At the super-block level, littlefs is a COW tree of blocks
+on the filesystem. At the super-block level, littlefs is a CObW tree of blocks
 that can be evicted on demand.
 
 ```
@@ -368,9 +367,10 @@ metadata pair independently, and we don't reduce our block granularity for
 other operations.
 
 In order to determine which metadata block is the most recent, we store a
-revision count that we compare using sequence arithmetic (very handy for
-avoiding problems with integer overflow). Conventiently, this revision count
-also gives us a rough idea of how many erases have occured on the block.
+revision count that we compare using [sequence arithmetic][wikipedia-sna]
+(very handy for avoiding problems with integer overflow). Conveniently, this
+revision count also gives us a rough idea of how many erases have occured on
+the block.
 
 ```
 metadata pair pointer: {block 0, block 1}
@@ -389,22 +389,22 @@ disk                           v                          v
              block 1 is    |----------------|----------------|
              most recent   |       A        |       A''      |
                            |----------------|----------------|
-                           |      CRC       |      CRC       |
+                           |    checksum    |    checksum    |
                            |----------------|----------------|
                            |       B        |       A'''     | <- most recent A
                            |----------------|----------------|
-                           |       A''      |      CRC       |
+                           |       A''      |    checksum    |
                            |----------------|----------------|
-                           |      CRC       |       |        |
+                           |    checksum    |       |        |
                            |----------------|       v        |
                            '----------------'----------------'
 ```
 
-So how do atomically update our metadata pairs? Atomicity (a type of
+So how do we atomically update our metadata pairs? Atomicity (a type of
 power-loss resilience) requires two parts: redundancy and error detection.
 Error detection can be provided with a checksum, and in littlefs's case we
-use a 32-bit CRC. Maintaining redundancy, on the other hand, requires
-multiple stages.
+use a 32-bit [CRC][wikipedia-crc]. Maintaining redundancy, on the other hand,
+requires multiple stages.
 
 1. If our block is not full and the program size is small enough to let us
    append more entries, we can simply append the entries to the log. Because
@@ -419,7 +419,7 @@ multiple stages.
    |----------------|----------------|    |----------------|----------------|
    |       |        |                |    |       A        |                |
    |       v        |                |    |----------------|                |
-   |                |                |    |      CRC       |                |
+   |                |                |    |    checksum    |                |
    |                |                |    |----------------|                |
    |                |                |    |       |        |                |
    |                |                |    |       v        |                |
@@ -443,13 +443,13 @@ multiple stages.
    |----------------|----------------|    |----------------|----------------|
    |       A        |                |    |       A        |                |
    |----------------|                |    |----------------|                |
-   |      CRC       |                |    |      CRC       |                |
+   |    checksum    |                |    |    checksum    |                |
    |----------------|                |    |----------------|                |
    |       |        |                |    |       B        |                |
    |       v        |                |    |----------------|                |
    |                |                |    |       A'       |                |
    |                |                |    |----------------|                |
-   |                |                |    |      CRC       |                |
+   |                |                |    |    checksum    |                |
    |                |                |    |----------------|                |
    '----------------'----------------'    '----------------'----------------'
    ```
@@ -469,8 +469,8 @@ multiple stages.
    During this compaction step we also erase the metadata block and increment
    the revision count. Because we can commit multiple entries at once, we can
    write all of these changes to the second block without worrying about power
-   loss. It's only when the commit's CRC is written that the compacted entries
-   and revision count become committed and readable.
+   loss. It's only when the commit's checksum is written that the compacted
+   entries and revision count become committed and readable.
 
    ```
                            commit B', need to compact
@@ -479,13 +479,13 @@ multiple stages.
    |----------------|----------------|    |----------------|----------------|
    |       A        |                |    |       A        |       A'       |
    |----------------|                |    |----------------|----------------|
-   |      CRC       |                |    |      CRC       |       B'       |
+   |    checksum    |                |    |    checksum    |       B'       |
    |----------------|                |    |----------------|----------------|
-   |       B        |                |    |       B        |      CRC       |
+   |       B        |                |    |       B        |    checksum    |
    |----------------|                |    |----------------|----------------|
    |       A'       |                |    |       A'       |       |        |
    |----------------|                |    |----------------|       v        |
-   |      CRC       |                |    |      CRC       |                |
+   |    checksum    |                |    |    checksum    |                |
    |----------------|                |    |----------------|                |
    '----------------'----------------'    '----------------'----------------'
    ```
@@ -514,13 +514,13 @@ multiple stages.
    |----------------|----------------|    |----------------|----------------|
    |       A        |       A'       |    |       A'       |       A'       |
    |----------------|----------------|    |----------------|----------------|
-   |      CRC       |       B'       |    |       B'       |       B'       |
+   |    checksum    |       B'       |    |       B'       |       B'       |
    |----------------|----------------|    |----------------|----------------|
-   |       B        |      CRC       |    |      tail    ---------------------.
+   |       B        |    checksum    |    |      tail    ---------------------.
    |----------------|----------------|    |----------------|----------------| |
-   |       A'       |       |        |    |      CRC       |                | |
+   |       A'       |       |        |    |    checksum    |                | |
    |----------------|       v        |    |----------------|                | |
-   |      CRC       |                |    |       |        |                | |
+   |    checksum    |                |    |       |        |                | |
    |----------------|                |    |       v        |                | |
    '----------------'----------------'    '----------------'----------------' |
                                                    .----------------.---------'
@@ -532,7 +532,7 @@ multiple stages.
                                           |----------------|                |
                                           |       D        |                |
                                           |----------------|                |
-                                          |      CRC       |                |
+                                          |    checksum    |                |
                                           |----------------|                |
                                           |       |        |                |
                                           |       v        |                |
@@ -541,7 +541,7 @@ multiple stages.
                                           '----------------'----------------'
    ```
 
-There is another complexity the pops up when dealing with small logs. The
+There is another complexity the crops up when dealing with small logs. The
 amortized runtime cost of garbage collection is not only dependendent on its
 one time cost (_O(n&sup2;)_ for littlefs), but also depends on how often
 garbage collection occurs.
@@ -555,24 +555,23 @@ Clearly we need to be more aggressive than waiting for our metadata pair to
 be full. As the metadata pair approaches fullness the frequency of compactions
 grows very rapidly.
 
-Looking at the problem generically, consider a log with ![n][n] bytes for each
-entry, ![d][d] dynamic entries (entries that are outdated during garbage
-collection), and ![s][s] static entries (entries that need to be copied during
+Looking at the problem generically, consider a log with ![n] bytes for each
+entry, ![d] dynamic entries (entries that are outdated during garbage
+collection), and ![s] static entries (entries that need to be copied during
 garbage collection). If we look at the amortized runtime complexity of updating
 this log we get this formula:
 
 ![cost = n + n (s / d+1)][metadata-formula1]
 
-If we let ![r][r] be the ratio of static space to the size of our log in bytes,
-we find an alternative representation of the number of static and dynamic
-entries:
+If we let ![r] be the ratio of static space to the size of our log in bytes, we
+find an alternative representation of the number of static and dynamic entries:
 
 ![s = r (size/n)][metadata-formula2]
 
 ![d = (1 - r) (size/n)][metadata-formula3]
 
-Substituting these in for ![d][d] and ![s][s] gives us a nice formula for the
-cost of updating an entry given how full the log is:
+Substituting these in for ![d] and ![s] gives us a nice formula for the cost of
+updating an entry given how full the log is:
 
 ![cost = n + n (r (size/n) / ((1-r) (size/n) + 1))][metadata-formula4]
 
@@ -610,15 +609,16 @@ mechanism for storing the bulk of our data.
 
 Metadata pairs provide efficient atomic updates but unfortunately have a large
 storage cost. But we can work around this storage cost by only using the
-metadata pairs to store references to more dense, copy-on-write ([COW][cow])
-data structures.
+metadata pairs to store references to more dense, copy-on-write (COW) data
+structures.
 
-Copy-on-write (COW) data structures, also called functional data structures,
-are a category of data structures where the underlying elements are immutable.
-Making changes to the data requires creating new elements containing a copy of
-the updated data and replacing any references with references to the new
-elements. Generally, the performance of a COW data structure depends on how
-many old elements can be reused after replacing parts of the data.
+[Copy-on-write data structures][wikipedia-cow], also called purely functional
+data structures, are a category of data structures where the underlying
+elements are immutable.  Making changes to the data requires creating new
+elements containing a copy of the updated data and replacing any references
+with references to the new elements. Generally, the performance of a COW data
+structure depends on how many old elements can be reused after replacing parts
+of the data.
 
 littlefs has several requirements of its COW structures. They need to be
 efficient to read and write, but most frustrating, they need to be traversable
@@ -665,10 +665,10 @@ over a file _in order_ has a runtime cost of _O(n&sup2;)_. A quadratic runtime
 just to read a file! That's awful.
 
 Fortunately we can do better. Instead of a singly linked list, littlefs
-uses a multilayered linked-list often called a skip-list. However, unlike
-the most common type of skip-list, littlefs's skip-lists are strictly
-deterministic built around some interesting properties of the
-[count-trailing-zeros (CTZ)][wikipedia-ctz] instruction.
+uses a multilayered linked-list often called a
+[skip-list][wikipedia-skip-list]. However, unlike the most common type of
+skip-list, littlefs's skip-lists are strictly deterministic built around some
+interesting properties of the count-trailing-zeros (CTZ) instruction.
 
 The rules CTZ skip-lists follow are that for every _n_&zwj;th block where _n_
 is divisible by 2&zwj;_&#739;_, that block contains a pointer to block
@@ -676,9 +676,9 @@ _n_-2&zwj;_&#739;_. This means that each block contains anywhere from 1 to
 log&#8322;_n_ pointers that skip to different preceding elements of the
 skip-list.
 
-The name comes from heavy use of the CTZ instruction, which lets us calculate
-the power-of-two factors efficiently. For a give block _n_, that block
-contains ctz(_n_)+1 pointers.
+The name comes from heavy use of the [CTZ instruction][wikipedia-ctz], which
+lets us calculate the power-of-two factors efficiently. For a give block _n_,
+that block contains ctz(_n_)+1 pointers.
 
 ```
 A backwards CTZ skip-list
@@ -719,10 +719,10 @@ backwards, which puts the runtime at _O(2 log n)_ = _O(log n)_. An interesting
 note is that this optimal path occurs naturally if we greedily choose the
 pointer that covers the most distance without passing our target.
 
-So now we have a COW data structure that is cheap to append with a runtime of
-_O(1)_, and can be read with a worst case runtime of _O(n log n)_. Given that
-this runtime is also divided by the amount of data we can store in a block,
-this cost is fairly reasonable.
+So now we have a [COW] data structure that is cheap to append with a runtime
+of _O(1)_, and can be read with a worst case runtime of _O(n log n)_. Given
+that this runtime is also divided by the amount of data we can store in a
+block, this cost is fairly reasonable.
 
 ---
 
@@ -743,7 +743,7 @@ Because our file size is limited the word width we use to store sizes, we can
 also solve for the maximum number of pointers we would ever need to store in a
 block. If we set the overhead of pointers equal to the block size, we get the
 following equation. Note that both a smaller block size (![B][bigB]) and larger
-word width (![w][w]) result in more storage overhead.
+word width (![w]) result in more storage overhead.
 
 ![B = (w/8)ceil(log2(2^w / (B-2w/8)))][ctz-formula2]
 
@@ -766,8 +766,8 @@ index + offset pair. So in theory we can store only a single pointer and size.
 
 However, calculating the index + offset pair from the size is a bit
 complicated. We can start with a summation that loops through all of the blocks
-up until our given size. Let ![B][bigB] be the block size in bytes, ![w][w] be
-the word width in bits, ![n][n] be the index of the block in the skip-list, and
+up until our given size. Let ![B][bigB] be the block size in bytes, ![w] be the
+word width in bits, ![n] be the index of the block in the skip-list, and
 ![N][bigN] be the file size in bytes:
 
 ![N = sum,i,0->n(B-(w/8)(ctz(i)+1))][ctz-formula3]
@@ -792,7 +792,7 @@ where:
 1. ctz(![x]) = the number of trailing bits that are 0 in ![x]
 2. popcount(![x]) = the number of bits that are 1 in ![x]
 
-Initial tests of this surprising property seem to hold. As ![n][n] approaches
+Initial tests of this surprising property seem to hold. As ![n] approaches
 infinity, we end up with an average overhead of 2 pointers, which matches what
 our assumption from earlier. During iteration, the popcount function seems to
 handle deviations from this average. Of course, just to make sure I wrote a
@@ -804,16 +804,15 @@ equation for file size:
 ![N = Bn - (w/8)(2n-popcount(n))][ctz-formula5]
 
 Unfortunately, the popcount function is non-injective, so we can't solve this
-equation for our index. But what we can do is solve for an ![n'][n'] index that
-is greater than ![n][n] with error bounded by the range of the popcount
-function. We can repeatedly substitute ![n'][n'] into the original equation
-until the error is smaller than our integer resolution. As it turns out, we
-only need to perform this substitution once, which gives us this formula for
-our index:
+equation for our index. But what we can do is solve for an ![n'] index that
+is greater than ![n] with error bounded by the range of the popcount function.
+We can repeatedly substitute ![n'] into the original equation until the error
+is smaller than our integer resolution. As it turns out, we only need to
+perform this substitution once, which gives us this formula for our index:
 
 ![n = floor((N-(w/8)popcount(N/(B-2w/8))) / (B-2w/8))][ctz-formula6]
 
-Now that we have our index ![n][n], we can just plug it back into the above
+Now that we have our index ![n], we can just plug it back into the above
 equation to find the offset. We run into a bit of a problem with integer
 overflow, but we can avoid this by rearranging the equation a bit:
 
@@ -886,346 +885,14 @@ commit to metadata pair
                         '--------'  '--------'  '--------'  '--------'
 ```
 
-*- old below -*
-
-## Non-meta data
-
-Now, the metadata pairs do come with some drawbacks. Most notably, each pair
-requires two blocks for each block of data. I'm sure users would be very
-unhappy if their storage was suddenly cut in half! Instead of storing
-everything in these metadata blocks, the littlefs uses a COW data structure
-for files which is in turn pointed to by a metadata block. When
-we update a file, we create copies of any blocks that are modified until
-the metadata blocks are updated with the new copy. Once the metadata block
-points to the new copy, we deallocate the old blocks that are no longer in use.
-
-Here is what updating a one-block file may look like:
-```
-  block 1   block 2        block 1   block 2        block 1   block 2
-.---------.---------.    .---------.---------.    .---------.---------.
-| rev: 1  | rev: 0  |    | rev: 1  | rev: 0  |    | rev: 1  | rev: 2  |
-| file: 4 | file: 0 | -> | file: 4 | file: 0 | -> | file: 4 | file: 5 |
-| xor: 5  | xor: 0  |    | xor: 5  | xor: 0  |    | xor: 5  | xor: 7  |
-'---------'---------'    '---------'---------'    '---------'---------'
-    |                        |                                  |
-    v                        v                                  v
- block 4                  block 4    block 5       block 4    block 5
-.--------.               .--------. .--------.    .--------. .--------.
-| old    |               | old    | | new    |    | old    | | new    |
-| data   |               | data   | | data   |    | data   | | data   |
-|        |               |        | |        |    |        | |        |
-'--------'               '--------' '--------'    '--------' '--------'
-            update data in file        update metadata pair
-```
-
-It doesn't matter if we lose power while writing new data to block 5,
-since the old data remains unmodified in block 4. This example also
-highlights how the atomic updates of the metadata blocks provide a
-synchronization barrier for the rest of the littlefs.
-
-At this point, it may look like we are wasting an awfully large amount
-of space on the metadata. Just looking at that example, we are using
-three blocks to represent a file that fits comfortably in one! So instead
-of giving each file a metadata pair, we actually store the metadata for
-all files contained in a single directory in a single metadata block.
-
-Now we could just leave files here, copying the entire file on write
-provides the synchronization without the duplicated memory requirements
-of the metadata blocks. However, we can do a bit better.
-
-## CTZ skip-lists
-
-There are many different data structures for representing the actual
-files in filesystems. Of these, the littlefs uses a rather unique [COW](https://upload.wikimedia.org/wikipedia/commons/0/0c/Cow_female_black_white.jpg)
-data structure that allows the filesystem to reuse unmodified parts of the
-file without additional metadata pairs.
-
-First lets consider storing files in a simple linked-list. What happens when we
-append a block? We have to change the last block in the linked-list to point
-to this new block, which means we have to copy out the last block, and change
-the second-to-last block, and then the third-to-last, and so on until we've
-copied out the entire file.
-
-```
-Exhibit A: A linked-list
-.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
-| data 0 |->| data 1 |->| data 2 |->| data 4 |->| data 5 |->| data 6 |
-|        |  |        |  |        |  |        |  |        |  |        |
-|        |  |        |  |        |  |        |  |        |  |        |
-'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
-```
-
-To get around this, the littlefs, at its heart, stores files backwards. Each
-block points to its predecessor, with the first block containing no pointers.
-If you think about for a while, it starts to make a bit of sense. Appending
-blocks just point to their predecessor and no other blocks need to be updated.
-If we update a block in the middle, we will need to copy out the blocks that
-follow, but can reuse the blocks before the modified block. Since most file
-operations either reset the file each write or append to files, this design
-avoids copying the file in the most common cases.
-
-```
-Exhibit B: A backwards linked-list
-.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
-| data 0 |<-| data 1 |<-| data 2 |<-| data 4 |<-| data 5 |<-| data 6 |
-|        |  |        |  |        |  |        |  |        |  |        |
-|        |  |        |  |        |  |        |  |        |  |        |
-'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
-```
-
-However, a backwards linked-list does come with a rather glaring problem.
-Iterating over a file _in order_ has a runtime cost of `O(n&sup2;)`. Gah! A
-quadratic runtime to just _read_ a file? That's awful. Keep in mind reading
-files is usually the most common filesystem operation.
-
-To avoid this problem, the littlefs uses a multilayered linked-list. For
-every `n`th block where `n` is divisible by `2ˣ`, the block contains a pointer
-to block `n-2ˣ`. So each block contains anywhere from `1` to `log&sup2;n` pointers
-that skip to various sections of the preceding list. If you're familiar with
-data-structures, you may have recognized that this is a type of deterministic
-skip-list.
-
-The name comes from the use of the
-[count trailing zeros (CTZ)](https://en.wikipedia.org/wiki/Count_trailing_zeros)
-instruction, which allows us to calculate the power-of-two factors efficiently.
-For a given block n, the block contains ctz(n)+1 pointers.
-
-```
-Exhibit C: A backwards CTZ skip-list
-.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
-| data 0 |<-| data 1 |<-| data 2 |<-| data 3 |<-| data 4 |<-| data 5 |
-|        |<-|        |--|        |<-|        |--|        |  |        |
-|        |<-|        |--|        |--|        |--|        |  |        |
-'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
-```
-
-The additional pointers allow us to navigate the data-structure on disk
-much more efficiently than in a singly linked-list.
-
-Taking exhibit C for example, here is the path from data block 5 to data
-block 1. You can see how data block 3 was completely skipped:
-```
-.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
-| data 0 |  | data 1 |<-| data 2 |  | data 3 |  | data 4 |<-| data 5 |
-|        |  |        |  |        |<-|        |--|        |  |        |
-|        |  |        |  |        |  |        |  |        |  |        |
-'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
-```
-
-The path to data block 0 is even more quick, requiring only two jumps:
-```
-.--------.  .--------.  .--------.  .--------.  .--------.  .--------.
-| data 0 |  | data 1 |  | data 2 |  | data 3 |  | data 4 |<-| data 5 |
-|        |  |        |  |        |  |        |  |        |  |        |
-|        |<-|        |--|        |--|        |--|        |  |        |
-'--------'  '--------'  '--------'  '--------'  '--------'  '--------'
-```
-
-We can find the runtime complexity by looking at the path to any block from
-the block containing the most pointers. Every step along the path divides
-the search space for the block in half. This gives us a runtime of O(log n).
-To get to the block with the most pointers, we can perform the same steps
-backwards, which puts the runtime at O(2 log n) = O(log n). The interesting
-part about this data structure is that this optimal path occurs naturally
-if we greedily choose the pointer that covers the most distance without passing
-our target block.
-
-So now we have a representation of files that can be appended trivially with
-a runtime of O(1), and can be read with a worst case runtime of O(n log n).
-Given that the the runtime is also divided by the amount of data we can store
-in a block, this is pretty reasonable.
-
-Unfortunately, the CTZ skip-list comes with a few questions that aren't
-straightforward to answer. What is the overhead? How do we handle more
-pointers than we can store in a block? How do we store the skip-list in
-a directory entry?
-
-One way to find the overhead per block is to look at the data structure as
-multiple layers of linked-lists. Each linked-list skips twice as many blocks
-as the previous linked-list. Another way of looking at it is that each
-linked-list uses half as much storage per block as the previous linked-list.
-As we approach infinity, the number of pointers per block forms a geometric
-series. Solving this geometric series gives us an average of only 2 pointers
-per block.
-
-![overhead_per_block](https://latex.codecogs.com/svg.latex?%5Clim_%7Bn%5Cto%5Cinfty%7D%5Cfrac%7B1%7D%7Bn%7D%5Csum_%7Bi%3D0%7D%5E%7Bn%7D%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%20%3D%20%5Csum_%7Bi%3D0%7D%5Cfrac%7B1%7D%7B2%5Ei%7D%20%3D%202)
-
-Finding the maximum number of pointers in a block is a bit more complicated,
-but since our file size is limited by the integer width we use to store the
-size, we can solve for it. Setting the overhead of the maximum pointers equal
-to the block size we get the following equation. Note that a smaller block size
-results in more pointers, and a larger word width results in larger pointers.
-
-![maximum overhead](https://latex.codecogs.com/svg.latex?B%20%3D%20%5Cfrac%7Bw%7D%7B8%7D%5Cleft%5Clceil%5Clog_2%5Cleft%28%5Cfrac%7B2%5Ew%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D%5Cright%29%5Cright%5Crceil)
-
-where:  
-B = block size in bytes  
-w = word width in bits  
-
-Solving the equation for B gives us the minimum block size for various word
-widths:  
-32 bit CTZ skip-list = minimum block size of 104 bytes  
-64 bit CTZ skip-list = minimum block size of 448 bytes  
-
-Since littlefs uses a 32 bit word size, we are limited to a minimum block
-size of 104 bytes. This is a perfectly reasonable minimum block size, with most
-block sizes starting around 512 bytes. So we can avoid additional logic to
-avoid overflowing our block's capacity in the CTZ skip-list.
-
-So, how do we store the skip-list in a directory entry? A naive approach would
-be to store a pointer to the head of the skip-list, the length of the file
-in bytes, the index of the head block in the skip-list, and the offset in the
-head block in bytes. However this is a lot of information, and we can observe
-that a file size maps to only one block index + offset pair. So it should be
-sufficient to store only the pointer and file size.
-
-But there is one problem, calculating the block index + offset pair from a
-file size doesn't have an obvious implementation.
-
-We can start by just writing down an equation. The first idea that comes to
-mind is to just use a for loop to sum together blocks until we reach our
-file size. We can write this equation as a summation:
-
-![summation1](https://latex.codecogs.com/svg.latex?N%20%3D%20%5Csum_i%5En%5Cleft%5BB-%5Cfrac%7Bw%7D%7B8%7D%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%5Cright%5D)
-
-where:  
-B = block size in bytes  
-w = word width in bits  
-n = block index in skip-list  
-N = file size in bytes  
-
-And this works quite well, but is not trivial to calculate. This equation
-requires O(n) to compute, which brings the entire runtime of reading a file
-to O(n^2 log n). Fortunately, the additional O(n) does not need to touch disk,
-so it is not completely unreasonable. But if we could solve this equation into
-a form that is easily computable, we can avoid a big slowdown.
-
-Unfortunately, the summation of the CTZ instruction presents a big challenge.
-How would you even begin to reason about integrating a bitwise instruction?
-Fortunately, there is a powerful tool I've found useful in these situations:
-The [On-Line Encyclopedia of Integer Sequences (OEIS)](https://oeis.org/).
-If we work out the first couple of values in our summation, we find that CTZ
-maps to [A001511](https://oeis.org/A001511), and its partial summation maps
-to [A005187](https://oeis.org/A005187), and surprisingly, both of these
-sequences have relatively trivial equations! This leads us to a rather
-unintuitive property:
-
-![mindblown](https://latex.codecogs.com/svg.latex?%5Csum_i%5En%5Cleft%28%5Ctext%7Bctz%7D%28i%29&plus;1%5Cright%29%20%3D%202n-%5Ctext%7Bpopcount%7D%28n%29)
-
-where:  
-ctz(x) = the number of trailing bits that are 0 in x  
-popcount(x) = the number of bits that are 1 in x  
-
-It's a bit bewildering that these two seemingly unrelated bitwise instructions
-are related by this property. But if we start to dissect this equation we can
-see that it does hold. As n approaches infinity, we do end up with an average
-overhead of 2 pointers as we find earlier. And popcount seems to handle the
-error from this average as it accumulates in the CTZ skip-list.
-
-Now we can substitute into the original equation to get a trivial equation
-for a file size:
-
-![summation2](https://latex.codecogs.com/svg.latex?N%20%3D%20Bn%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Cleft%282n-%5Ctext%7Bpopcount%7D%28n%29%5Cright%29)
-
-Unfortunately, we're not quite done. The popcount function is non-injective,
-so we can only find the file size from the block index, not the other way
-around. However, we can solve for an n' block index that is greater than n
-with an error bounded by the range of the popcount function. We can then
-repeatedly substitute this n' into the original equation until the error
-is smaller than the integer division. As it turns out, we only need to
-perform this substitution once. Now we directly calculate our block index:
-
-![formulaforn](https://latex.codecogs.com/svg.latex?n%20%3D%20%5Cleft%5Clfloor%5Cfrac%7BN-%5Cfrac%7Bw%7D%7B8%7D%5Cleft%28%5Ctext%7Bpopcount%7D%5Cleft%28%5Cfrac%7BN%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D-1%5Cright%29&plus;2%5Cright%29%7D%7BB-2%5Cfrac%7Bw%7D%7B8%7D%7D%5Cright%5Crfloor)
-
-Now that we have our block index n, we can just plug it back into the above
-equation to find the offset. However, we do need to rearrange the equation
-a bit to avoid integer overflow:
-
-![formulaforoff](https://latex.codecogs.com/svg.latex?%5Cmathit%7Boff%7D%20%3D%20N%20-%20%5Cleft%28B-2%5Cfrac%7Bw%7D%7B8%7D%5Cright%29n%20-%20%5Cfrac%7Bw%7D%7B8%7D%5Ctext%7Bpopcount%7D%28n%29)
-
-The solution involves quite a bit of math, but computers are very good at math.
-Now we can solve for both the block index and offset from the file size in O(1).
-
-Here is what it might look like to update a file stored with a CTZ skip-list:
-```
-                                      block 1   block 2
-                                    .---------.---------.
-                                    | rev: 1  | rev: 0  |
-                                    | file: 6 | file: 0 |
-                                    | size: 4 | size: 0 |
-                                    | xor: 3  | xor: 0  |
-                                    '---------'---------'
-                                        |
-                                        v
-  block 3     block 4     block 5     block 6
-.--------.  .--------.  .--------.  .--------.
-| data 0 |<-| data 1 |<-| data 2 |<-| data 3 |
-|        |<-|        |--|        |  |        |
-|        |  |        |  |        |  |        |
-'--------'  '--------'  '--------'  '--------'
-
-|  update data in file
-v
-
-                                      block 1   block 2
-                                    .---------.---------.
-                                    | rev: 1  | rev: 0  |
-                                    | file: 6 | file: 0 |
-                                    | size: 4 | size: 0 |
-                                    | xor: 3  | xor: 0  |
-                                    '---------'---------'
-                                        |
-                                        v
-  block 3     block 4     block 5     block 6
-.--------.  .--------.  .--------.  .--------.
-| data 0 |<-| data 1 |<-| old    |<-| old    |
-|        |<-|        |--| data 2 |  | data 3 |
-|        |  |        |  |        |  |        |
-'--------'  '--------'  '--------'  '--------'
-     ^ ^           ^
-     | |           |      block 7     block 8     block 9    block 10
-     | |           |    .--------.  .--------.  .--------.  .--------.
-     | |           '----| new    |<-| new    |<-| new    |<-| new    |
-     | '----------------| data 2 |<-| data 3 |--| data 4 |  | data 5 |
-     '------------------|        |--|        |--|        |  |        |
-                        '--------'  '--------'  '--------'  '--------'
-
-|  update metadata pair
-v
-
-                                                   block 1   block 2
-                                                 .---------.---------.
-                                                 | rev: 1  | rev: 2  |
-                                                 | file: 6 | file: 10|
-                                                 | size: 4 | size: 6 |
-                                                 | xor: 3  | xor: 14 |
-                                                 '---------'---------'
-                                                                |
-                                                                |
-  block 3     block 4     block 5     block 6                   |
-.--------.  .--------.  .--------.  .--------.                  |
-| data 0 |<-| data 1 |<-| old    |<-| old    |                  |
-|        |<-|        |--| data 2 |  | data 3 |                  |
-|        |  |        |  |        |  |        |                  |
-'--------'  '--------'  '--------'  '--------'                  |
-     ^ ^           ^                                            v
-     | |           |      block 7     block 8     block 9    block 10
-     | |           |    .--------.  .--------.  .--------.  .--------.
-     | |           '----| new    |<-| new    |<-| new    |<-| new    |
-     | '----------------| data 2 |<-| data 3 |--| data 4 |  | data 5 |
-     '------------------|        |--|        |--|        |  |        |
-                        '--------'  '--------'  '--------'  '--------'
-```
-**-- new below --**
-
 ## The block allocator
 
 So we now have the framework for an atomic, wear leveling filesystem. Small two
 block metadata pairs provide atomic updates, while CTZ skip-lists provide
 compact storage of data in COW blocks.
 
-But now we need to look at the [elephant][elephant] in the room. Where do all
-these blocks come from?
+But now we need to look at the [elephant] in the room. Where do all these
+blocks come from?
 
 Deciding which block to use next is the responsibility of the block allocator.
 In filesystem design, block allocation is often a second-class citizen, but in
@@ -1282,11 +949,11 @@ through every block on storage and check each one against our filesystem tree,
 however the runtime would be abhorrent. We need to somehow collect multiple
 blocks each traversal.
 
-Looking at existing designs, some PC filesystems that use a similar "drop it on
-the floor" strategy actually store a bitmap of the entire storage in
-[RAM][ram]. This works well because bitmaps are surprisingly compact. We can't
-use the same strategy here, as it violates our constant RAM requirement, but we
-may be able to modify the idea into a workable solution.
+Looking at existing designs, some larger filesystems that use a similar "drop
+it on the floor" strategy store a bitmap of the entire storage in [RAM]. This
+works well because bitmaps are surprisingly compact. We can't use the same
+strategy here, as it violates our constant RAM requirement, but we may be able
+to modify the idea into a workable solution.
 
 ```
 .----.----.----.----.----.----.----.----.----.----.----.----.
@@ -1371,9 +1038,9 @@ that previously failed.
 The actual act of evicting the bad block and replacing it with a new block is
 left up to the filesystem's copy-on-bounded-writes (CObW) data structures. One
 property of CObW data structures is that any block can be replaced during a
-copy-on-write (COW) operation. The bounded-writes part is normally triggered by
-a counter, but nothing prevents us from triggering a COW operation as soon as
-we find a bad block.
+COW operation. The bounded-writes part is normally triggered by a counter, but
+nothing prevents us from triggering a COW operation as soon as we find a bad
+block.
 
 ```
      .----.
@@ -1584,7 +1251,7 @@ In fact, several NOR flash chips have extra storage intended for ECC, and many
 NAND chips can even calculate ECC on the chip itself.
 
 In littlefs, ECC is entirely optional. Read errors can instead be prevented
-proactively by wear-leveling. But it's important to note that ECC can be used
+proactively by wear leveling. But it's important to note that ECC can be used
 at the block device level to modestly extend the life of a device. littlefs
 respects any errors reported by the block device, allow a block device to
 provide additional aggressive error detection.
@@ -1606,12 +1273,13 @@ wear leveling.
 
 Generally, wear leveling algorithms fall into one of two categories:
 
-1. Dynamic wear leveling, where we distribute wear over "dynamic" blocks. The
-   can be accomplished by considering unused blocks.
+1. [Dynamic wear leveling][wikipedia-dynamic-wear-leveling], where we
+   distribute wear over "dynamic" blocks. The can be accomplished by
+   only considering unused blocks.
 
-2. Static wear leveling, where we distribute wear over both "dynamic" and
-   "static" blocks. To make this work, we need to consider all blocks,
-   including blocks that already contain data.
+2. [Static wear leveling][wikipedia-static-wear-leveling], where we
+   distribute wear over both "dynamic" and "static" blocks. To make this work,
+   we need to consider all blocks, including blocks that already contain data.
 
 As a tradeoff for code size and complexity, littlefs (currently) only provides
 dynamic wear leveling. This is a best efforts solution. Wear is not distributed
@@ -1682,107 +1350,10 @@ is not useful for general use.
 Together, bad block detection and dynamic wear leveling provide a best effort
 solution for avoiding the early death of a filesystem due to wear. Importantly,
 littlefs's wear leveling algorithm provides a key feature: You can increase the
-life of a device simply by increasing the size of storage.
-
-**-- old below --**
-
-## The block allocator
-
-So those two ideas provide the grounds for the filesystem. The metadata pairs
-give us directories, and the CTZ skip-lists give us files. But this leaves
-one big [elephant](https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg)
-of a question. How do we get those blocks in the first place?
-
-One common strategy is to store unallocated blocks in a big free list, and
-initially the littlefs was designed with this in mind. By storing a reference
-to the free list in every single metadata pair, additions to the free list
-could be updated atomically at the same time the replacement blocks were
-stored in the metadata pair. During boot, every metadata pair had to be
-scanned to find the most recent free list, but once the list was found the
-state of all free blocks becomes known.
-
-However, this approach had several issues:
-
-- There was a lot of nuanced logic for adding blocks to the free list without
-  modifying the blocks, since the blocks remain active until the metadata is
-  updated.
-- The free list had to support both additions and removals in FIFO order while
-  minimizing block erases.
-- The free list had to handle the case where the file system completely ran
-  out of blocks and may no longer be able to add blocks to the free list.
-- If we used a revision count to track the most recently updated free list,
-  metadata blocks that were left unmodified were ticking time bombs that would
-  cause the system to go haywire if the revision count overflowed.
-- Every single metadata block wasted space to store these free list references.
-
-Actually, to simplify, this approach had one massive glaring issue: complexity.
-
-> Complexity leads to fallibility.  
-> Fallibility leads to unmaintainability.  
-> Unmaintainability leads to suffering.  
-
-Or at least, complexity leads to increased code size, which is a problem
-for embedded systems.
-
-In the end, the littlefs adopted more of a "drop it on the floor" strategy.
-That is, the littlefs doesn't actually store information about which blocks
-are free on the storage. The littlefs already stores which files _are_ in
-use, so to find a free block, the littlefs just takes all of the blocks that
-exist and subtract the blocks that are in use.
-
-Of course, it's not quite that simple. Most filesystems that adopt this "drop
-it on the floor" strategy either rely on some properties inherent to the
-filesystem, such as the cyclic-buffer structure of logging filesystems,
-or use a bitmap or table stored in RAM to track free blocks, which scales
-with the size of storage and is problematic when you have limited RAM. You
-could iterate through every single block in storage and check it against
-every single block in the filesystem on every single allocation, but that
-would have an abhorrent runtime.
-
-So the littlefs compromises. It doesn't store a bitmap the size of the storage,
-but it does store a little bit-vector that contains a fixed set lookahead
-for block allocations. During a block allocation, the lookahead vector is
-checked for any free blocks. If there are none, the lookahead region jumps
-forward and the entire filesystem is scanned for free blocks.
-
-Here's what it might look like to allocate 4 blocks on a decently busy
-filesystem with a 32bit lookahead and a total of
-128 blocks (512Kbytes of storage if blocks are 4Kbyte):
-```
-boot...         lookahead:
-                fs blocks: fffff9fffffffffeffffffffffff0000
-scanning...     lookahead: fffff9ff
-                fs blocks: fffff9fffffffffeffffffffffff0000
-alloc = 21      lookahead: fffffdff
-                fs blocks: fffffdfffffffffeffffffffffff0000
-alloc = 22      lookahead: ffffffff
-                fs blocks: fffffffffffffffeffffffffffff0000
-scanning...     lookahead:         fffffffe
-                fs blocks: fffffffffffffffeffffffffffff0000
-alloc = 63      lookahead:         ffffffff
-                fs blocks: ffffffffffffffffffffffffffff0000
-scanning...     lookahead:         ffffffff
-                fs blocks: ffffffffffffffffffffffffffff0000
-scanning...     lookahead:                 ffffffff
-                fs blocks: ffffffffffffffffffffffffffff0000
-scanning...     lookahead:                         ffff0000
-                fs blocks: ffffffffffffffffffffffffffff0000
-alloc = 112     lookahead:                         ffff8000
-                fs blocks: ffffffffffffffffffffffffffff8000
-```
-
-While this lookahead approach still has an asymptotic runtime of `O(n&sup2;)`
-to scan all of storage, the lookahead reduces the practical runtime to a
-reasonable amount. Bit-vectors are surprisingly compact, given only 16 bytes,
-the lookahead could track 128 blocks. For a 4Mbyte flash chip with 4Kbyte
-blocks, the littlefs would only need 8 passes to scan the entire storage.
-
-The real benefit of this approach is just how much it simplified the design
-of the littlefs. Deallocating blocks is as simple as simply forgetting they
-exist, and there is absolutely no concern of bugs in the deallocation code
-causing difficult to detect memory leaks.
-
-**- new below -**
+life of a device simply by increasing the size of storage. And if more
+aggressive wear leveling is desired, you can always combine littlefs with a
+[flash translation layer (FTL)][wikipedia-ftl] to get a small power resilient
+filesystem with static wear leveling.
 
 ## Files
 
@@ -1826,7 +1397,7 @@ file stored as inode, 4 bytes costs ~12 KiB
 ||----------------|    \             |
 ||    skiplist   ---.  +- metadata   |
 ||----------------| |  /  4x8 bytes  |
-||      CRC       | |     32 bytes   |
+||    checksum    | |     32 bytes   |
 ||----------------| |                |
 ||       |        | |                +- metadata pair
 ||       v        | |                |  2x4 KiB
@@ -1856,7 +1427,7 @@ file stored as inode, 4 bytes costs ~12 KiB
 
 We can make several improvements. First, instead of giving each file its own
 metadata pair, we can store multiple files in a single metadata pair. One way
-to do this is to directly associate a directory with a metadata pair (well, a
+to do this is to directly associate a directory with a metadata pair (or a
 linked list of metadata pairs). This makes it easy for multiple files to share
 the directory's metadata pair for logging and reduce the collective storage
 overhead.
@@ -1877,7 +1448,7 @@ multiple files stored in metadata pair, 4 bytes costs ~4 KiB
       ||    B name      |   |  +- metadata
       ||   B skiplist  ---. |  |  4x8 bytes
       ||----------------| | |  /  32 bytes
-      ||      CRC       | | |
+      ||    checksum    | | |
       ||----------------| | |
       ||       |        | | |
       ||       v        | | |
@@ -1923,7 +1494,7 @@ inline files stored in metadata pair, 4 bytes costs ~16 bytes
 ||    B name      | |  +- data
 ||    B data      | |  |  4x4 bytes
 ||----------------| |  /  16 bytes
-||      CRC       | |  
+||    checksum    | |  
 ||----------------| |  
 ||       |        | |  
 ||       v        | |  
@@ -1989,9 +1560,9 @@ like what you find on other filesystems.
 '--------'  '--------'  '--------'  '--------'  '--------'
 ```
 
-The main complication is, once again, traversal with a constant amount of RAM.
-The directory tree is a tree, and the unfortunate fact is you can't traverse a
-tree with constant RAM.
+The main complication is, once again, traversal with a constant amount of
+[RAM]. The directory tree is a tree, and the unfortunate fact is you can't
+traverse a tree with constant RAM.
 
 Fortunately, the elements of our tree are metadata pairs, so unlike CTZ
 skip-lists, we're not limited to strict COW operations. One thing we can do is
@@ -2327,7 +1898,7 @@ So what can we do?
 
 In the end, solving the move problem required creating a new mechanism for
 sharing knowledge between multiple metadata pairs. In littlefs this led to the
-introduction of "global state".
+introduction of a mechanism called "global state".
 
 ---
 
@@ -2587,663 +2158,23 @@ of states and using the same number of commits as a naive move. Additionally,
 global state gives us a bit of persistent state we can use for some other
 small improvements.
 
-**- old below -**
-
-## Directories
-
-Now we just need directories to store our files. Since we already have
-metadata blocks that store information about files, lets just use these
-metadata blocks as the directories. Maybe turn the directories into linked
-lists of metadata blocks so it isn't limited by the number of files that fit
-in a single block. Add entries that represent other nested directories.
-Drop "." and ".." entries, cause who needs them. Dust off our hands and
-we now have a directory tree.
-
-```
-            .--------.
-            |root dir|
-            | pair 0 |
-            |        |
-            '--------'
-            .-'    '-------------------------.
-           v                                  v
-      .--------.        .--------.        .--------.
-      | dir A  |------->| dir A  |        | dir B  |
-      | pair 0 |        | pair 1 |        | pair 0 |
-      |        |        |        |        |        |
-      '--------'        '--------'        '--------'
-      .-'    '-.            |             .-'    '-.
-     v          v           v            v          v
-.--------.  .--------.  .--------.  .--------.  .--------.
-| file C |  | file D |  | file E |  | file F |  | file G |
-|        |  |        |  |        |  |        |  |        |
-|        |  |        |  |        |  |        |  |        |
-'--------'  '--------'  '--------'  '--------'  '--------'
-```
-
-Unfortunately it turns out it's not that simple. See, iterating over a
-directory tree isn't actually all that easy, especially when you're trying
-to fit in a bounded amount of RAM, which rules out any recursive solution.
-And since our block allocator involves iterating over the entire filesystem
-tree, possibly multiple times in a single allocation, iteration needs to be
-efficient.
-
-So, as a solution, the littlefs adopted a sort of threaded tree. Each
-directory not only contains pointers to all of its children, but also a
-pointer to the next directory. These pointers create a linked-list that
-is threaded through all of the directories in the filesystem. Since we
-only use this linked list to check for existence, the order doesn't actually
-matter. As an added plus, we can repurpose the pointer for the individual
-directory linked-lists and avoid using any additional space.
-
-```
-            .--------.
-            |root dir|-.
-            | pair 0 | |
-   .--------|        |-'
-   |        '--------'
-   |        .-'    '-------------------------.
-   |       v                                  v
-   |  .--------.        .--------.        .--------.
-   '->| dir A  |------->| dir A  |------->| dir B  |
-      | pair 0 |        | pair 1 |        | pair 0 |
-      |        |        |        |        |        |
-      '--------'        '--------'        '--------'
-      .-'    '-.            |             .-'    '-.
-     v          v           v            v          v
-.--------.  .--------.  .--------.  .--------.  .--------.
-| file C |  | file D |  | file E |  | file F |  | file G |
-|        |  |        |  |        |  |        |  |        |
-|        |  |        |  |        |  |        |  |        |
-'--------'  '--------'  '--------'  '--------'  '--------'
-```
-
-This threaded tree approach does come with a few tradeoffs. Now, anytime we
-want to manipulate the directory tree, we find ourselves having to update two
-pointers instead of one. For anyone familiar with creating atomic data
-structures this should set off a whole bunch of red flags.
-
-But unlike the data structure guys, we can update a whole block atomically! So
-as long as we're really careful (and cheat a little bit), we can still
-manipulate the directory tree in a way that is resilient to power loss.
-
-Consider how we might add a new directory. Since both pointers that reference
-it can come from the same directory, we only need a single atomic update to
-finagle the directory into the filesystem:
-```
-   .--------.
-   |root dir|-.
-   | pair 0 | |
-.--|        |-'
-|  '--------'
-|      |
-|      v
-|  .--------.
-'->| dir A  |
-   | pair 0 |
-   |        |
-   '--------'
-
-|  create the new directory block
-v
-
-               .--------.
-               |root dir|-.
-               | pair 0 | |
-            .--|        |-'
-            |  '--------'
-            |      |
-            |      v
-            |  .--------.
-.--------.  '->| dir A  |
-| dir B  |---->| pair 0 |
-| pair 0 |     |        |
-|        |     '--------'
-'--------'
-
-|  update root to point to directory B
-v
-
-         .--------.
-         |root dir|-.
-         | pair 0 | |
-.--------|        |-'
-|        '--------'
-|        .-'    '-.
-|       v          v
-|  .--------.  .--------.
-'->| dir B  |->| dir A  |
-   | pair 0 |  | pair 0 |
-   |        |  |        |
-   '--------'  '--------'
-```
-
-Note that even though directory B was added after directory A, we insert
-directory B before directory A in the linked-list because it is convenient.
-
-Now how about removal:
-```
-         .--------.        .--------.
-         |root dir|------->|root dir|-.
-         | pair 0 |        | pair 1 | |
-.--------|        |--------|        |-'
-|        '--------'        '--------'
-|        .-'    '-.            |
-|       v          v           v
-|  .--------.  .--------.  .--------.
-'->| dir A  |->| dir B  |->| dir C  |
-   | pair 0 |  | pair 0 |  | pair 0 |
-   |        |  |        |  |        |
-   '--------'  '--------'  '--------'
-
-|  update root to no longer contain directory B
-v
-
-   .--------.              .--------.
-   |root dir|------------->|root dir|-.
-   | pair 0 |              | pair 1 | |
-.--|        |--------------|        |-'
-|  '--------'              '--------'
-|      |                       |
-|      v                       v
-|  .--------.  .--------.  .--------.
-'->| dir A  |->| dir B  |->| dir C  |
-   | pair 0 |  | pair 0 |  | pair 0 |
-   |        |  |        |  |        |
-   '--------'  '--------'  '--------'
-
-|  remove directory B from the linked-list
-v
-
-   .--------.  .--------.
-   |root dir|->|root dir|-.
-   | pair 0 |  | pair 1 | |
-.--|        |--|        |-'
-|  '--------'  '--------'
-|      |           |
-|      v           v
-|  .--------.  .--------.
-'->| dir A  |->| dir C  |
-   | pair 0 |  | pair 0 |
-   |        |  |        |
-   '--------'  '--------'
-```
-
-Wait, wait, wait, that's not atomic at all! If power is lost after removing
-directory B from the root, directory B is still in the linked-list. We've
-just created a memory leak!
-
-And to be honest, I don't have a clever solution for this case. As a
-side-effect of using multiple pointers in the threaded tree, the littlefs
-can end up with orphan blocks that have no parents and should have been
-removed.
-
-To keep these orphan blocks from becoming a problem, the littlefs has a
-deorphan step that simply iterates through every directory in the linked-list
-and checks it against every directory entry in the filesystem to see if it
-has a parent. The deorphan step occurs on the first block allocation after
-boot, so orphans should never cause the littlefs to run out of storage
-prematurely. Note that the deorphan step never needs to run in a read-only
-filesystem.
-
-## The move problem
-
-Now we have a real problem. How do we move things between directories while
-remaining power resilient? Even looking at the problem from a high level,
-it seems impossible. We can update directory blocks atomically, but atomically
-updating two independent directory blocks is not an atomic operation.
-
-Here's the steps the filesystem may go through to move a directory:
-```
-         .--------.
-         |root dir|-.
-         | pair 0 | |
-.--------|        |-'
-|        '--------'
-|        .-'    '-.
-|       v          v
-|  .--------.  .--------.
-'->| dir A  |->| dir B  |
-   | pair 0 |  | pair 0 |
-   |        |  |        |
-   '--------'  '--------'
-
-|  update directory B to point to directory A
-v
-
-         .--------.
-         |root dir|-.
-         | pair 0 | |
-.--------|        |-'
-|        '--------'
-|    .-----'    '-.
-|    |             v
-|    |           .--------.
-|    |        .->| dir B  |
-|    |        |  | pair 0 |
-|    |        |  |        |
-|    |        |  '--------'
-|    |     .-------'
-|    v    v   |
-|  .--------. |
-'->| dir A  |-'
-   | pair 0 |
-   |        |
-   '--------'
-
-|  update root to no longer contain directory A
-v
-     .--------.
-     |root dir|-.
-     | pair 0 | |
-.----|        |-'
-|    '--------'
-|        |
-|        v
-|    .--------.
-| .->| dir B  |
-| |  | pair 0 |
-| '--|        |-.
-|    '--------' |
-|        |      |
-|        v      |
-|    .--------. |
-'--->| dir A  |-'
-     | pair 0 |
-     |        |
-     '--------'
-```
-
-We can leave any orphans up to the deorphan step to collect, but that doesn't
-help the case where dir A has both dir B and the root dir as parents if we
-lose power inconveniently.
-
-Initially, you might think this is fine. Dir A _might_ end up with two parents,
-but the filesystem will still work as intended. But then this raises the
-question of what do we do when the dir A wears out? For other directory blocks
-we can update the parent pointer, but for a dir with two parents we would need
-work out how to update both parents. And the check for multiple parents would
-need to be carried out for every directory, even if the directory has never
-been moved.
-
-It also presents a bad user-experience, since the condition of ending up with
-two parents is rare, it's unlikely user-level code will be prepared. Just think
-about how a user would recover from a multi-parented directory. They can't just
-remove one directory, since remove would report the directory as "not empty".
-
-Other atomic filesystems simple COW the entire directory tree. But this
-introduces a significant bit of complexity, which leads to code size, along
-with a surprisingly expensive runtime cost during what most users assume is
-a single pointer update.
-
-Another option is to update the directory block we're moving from to point
-to the destination with a sort of predicate that we have moved if the
-destination exists. Unfortunately, the omnipresent concern of wear could
-cause any of these directory entries to change blocks, and changing the
-entry size before a move introduces complications if it spills out of
-the current directory block.
-
-So how do we go about moving a directory atomically?
-
-We rely on the improbableness of power loss.
-
-Power loss during a move is certainly possible, but it's actually relatively
-rare. Unless a device is writing to a filesystem constantly, it's unlikely that
-a power loss will occur during filesystem activity. We still need to handle
-the condition, but runtime during a power loss takes a back seat to the runtime
-during normal operations.
-
-So what littlefs does is inelegantly simple. When littlefs moves a file, it
-marks the file as "moving". This is stored as a single bit in the directory
-entry and doesn't take up much space. Then littlefs moves the directory,
-finishing with the complete remove of the "moving" directory entry.
-
-```
-         .--------.
-         |root dir|-.
-         | pair 0 | |
-.--------|        |-'
-|        '--------'
-|        .-'    '-.
-|       v          v
-|  .--------.  .--------.
-'->| dir A  |->| dir B  |
-   | pair 0 |  | pair 0 |
-   |        |  |        |
-   '--------'  '--------'
-
-|  update root directory to mark directory A as moving
-v
-
-        .----------.
-        |root dir  |-.
-        | pair 0   | |
-.-------| moving A!|-'
-|       '----------'
-|        .-'    '-.
-|       v          v
-|  .--------.  .--------.
-'->| dir A  |->| dir B  |
-   | pair 0 |  | pair 0 |
-   |        |  |        |
-   '--------'  '--------'
-
-|  update directory B to point to directory A
-v
-
-        .----------.
-        |root dir  |-.
-        | pair 0   | |
-.-------| moving A!|-'
-|       '----------'
-|    .-----'    '-.
-|    |             v
-|    |           .--------.
-|    |        .->| dir B  |
-|    |        |  | pair 0 |
-|    |        |  |        |
-|    |        |  '--------'
-|    |     .-------'
-|    v    v   |
-|  .--------. |
-'->| dir A  |-'
-   | pair 0 |
-   |        |
-   '--------'
-
-|  update root to no longer contain directory A
-v
-     .--------.
-     |root dir|-.
-     | pair 0 | |
-.----|        |-'
-|    '--------'
-|        |
-|        v
-|    .--------.
-| .->| dir B  |
-| |  | pair 0 |
-| '--|        |-.
-|    '--------' |
-|        |      |
-|        v      |
-|    .--------. |
-'--->| dir A  |-'
-     | pair 0 |
-     |        |
-     '--------'
-```
-
-Now, if we run into a directory entry that has been marked as "moved", one
-of two things is possible. Either the directory entry exists elsewhere in the
-filesystem, or it doesn't. This is a `O(n)` operation, but only occurs in the
-unlikely case we lost power during a move.
-
-And we can easily fix the "moved" directory entry. Since we're already scanning
-the filesystem during the deorphan step, we can also check for moved entries.
-If we find one, we either remove the "moved" marking or remove the whole entry
-if it exists elsewhere in the filesystem.
-
-## Wear awareness
-
-So now that we have all of the pieces of a filesystem, we can look at a more
-subtle attribute of embedded storage: The wear down of flash blocks.
-
-The first concern for the littlefs, is that perfectly valid blocks can suddenly
-become unusable. As a nice side-effect of using a COW data-structure for files,
-we can simply move on to a different block when a file write fails. All
-modifications to files are performed in copies, so we will only replace the
-old file when we are sure none of the new file has errors. Directories, on
-the other hand, need a different strategy.
-
-The solution to directory corruption in the littlefs relies on the redundant
-nature of the metadata pairs. If an error is detected during a write to one
-of the metadata pairs, we seek out a new block to take its place. Once we find
-a block without errors, we iterate through the directory tree, updating any
-references to the corrupted metadata pair to point to the new metadata block.
-Just like when we remove directories, we can lose power during this operation
-and end up with a desynchronized metadata pair in our filesystem. And just like
-when we remove directories, we leave the possibility of a desynchronized
-metadata pair up to the deorphan step to clean up.
-
-Here's what encountering a directory error may look like with all of
-the directories and directory pointers fully expanded:
-```
-         root dir
-         block 1   block 2
-       .---------.---------.
-       | rev: 1  | rev: 0  |--.
-       |         |         |-.|
-.------|         |         |-|'
-|.-----|         |         |-'
-||     '---------'---------'
-||       |||||'--------------------------------------------------.
-||       ||||'-----------------------------------------.         |
-||       |||'-----------------------------.            |         |
-||       ||'--------------------.         |            |         |
-||       |'-------.             |         |            |         |
-||       v         v            v         v            v         v
-||    dir A                  dir B                  dir C
-||    block 3   block 4      block 5   block 6      block 7   block 8
-||  .---------.---------.  .---------.---------.  .---------.---------.
-|'->| rev: 1  | rev: 0  |->| rev: 1  | rev: 0  |->| rev: 1  | rev: 0  |
-'-->|         |         |->|         |         |->|         |         |
-    |         |         |  |         |         |  |
-    |         |         |  |         |         |  |         |         |
-    '---------'---------'  '---------'---------'  '---------'---------'
-
-|  update directory B
-v
-
-         root dir
-         block 1   block 2
-       .---------.---------.
-       | rev: 1  | rev: 0  |--.
-       |         |         |-.|
-.------|         |         |-|'
-|.-----|         |         |-'
-||     '---------'---------'
-||       |||||'--------------------------------------------------.
-||       ||||'-----------------------------------------.         |
-||       |||'-----------------------------.            |         |
-||       ||'--------------------.         |            |         |
-||       |'-------.             |         |            |         |
-||       v         v            v         v            v         v
-||    dir A                  dir B                  dir C
-||    block 3   block 4      block 5   block 6      block 7   block 8
-||  .---------.---------.  .---------.---------.  .---------.---------.
-|'->| rev: 1  | rev: 0  |->| rev: 1  | rev: 2  |->| rev: 1  | rev: 0  |
-'-->|         |         |->|         | corrupt!|->|         |         |
-    |         |         |  |         | corrupt!|  |         |         |
-    |         |         |  |         | corrupt!|  |         |         |
-    '---------'---------'  '---------'---------'  '---------'---------'
-
-|  oh no! corruption detected
-v  allocate a replacement block
-
-         root dir
-         block 1   block 2
-       .---------.---------.
-       | rev: 1  | rev: 0  |--.
-       |         |         |-.|
-.------|         |         |-|'
-|.-----|         |         |-'
-||     '---------'---------'
-||       |||||'----------------------------------------------------.
-||       ||||'-------------------------------------------.         |
-||       |||'-----------------------------.              |         |
-||       ||'--------------------.         |              |         |
-||       |'-------.             |         |              |         |
-||       v         v            v         v              v         v
-||    dir A                  dir B                    dir C
-||    block 3   block 4      block 5   block 6        block 7   block 8
-||  .---------.---------.  .---------.---------.    .---------.---------.
-|'->| rev: 1  | rev: 0  |->| rev: 1  | rev: 2  |--->| rev: 1  | rev: 0  |
-'-->|         |         |->|         | corrupt!|--->|         |         |
-    |         |         |  |         | corrupt!| .->|         |         |
-    |         |         |  |         | corrupt!| |  |         |         |
-    '---------'---------'  '---------'---------' |  '---------'---------'
-                                       block 9   |
-                                     .---------. |
-                                     | rev: 2  |-'
-                                     |         |
-                                     |         |
-                                     |         |
-                                     '---------'
-
-|  update root directory to contain block 9
-v
-
-        root dir
-        block 1   block 2
-      .---------.---------.
-      | rev: 1  | rev: 2  |--.
-      |         |         |-.|
-.-----|         |         |-|'
-|.----|         |         |-'
-||    '---------'---------'
-||       .--------'||||'----------------------------------------------.
-||       |         |||'-------------------------------------.         |
-||       |         ||'-----------------------.              |         |
-||       |         |'------------.           |              |         |
-||       |         |             |           |              |         |
-||       v         v             v           v              v         v
-||    dir A                   dir B                      dir C
-||    block 3   block 4       block 5     block 9        block 7   block 8
-||  .---------.---------.   .---------. .---------.    .---------.---------.
-|'->| rev: 1  | rev: 0  |-->| rev: 1  |-| rev: 2  |--->| rev: 1  | rev: 0  |
-'-->|         |         |-. |         | |         |--->|         |         |
-    |         |         | | |         | |         | .->|         |         |
-    |         |         | | |         | |         | |  |         |         |
-    '---------'---------' | '---------' '---------' |  '---------'---------'
-                          |               block 6   |
-                          |             .---------. |
-                          '------------>| rev: 2  |-'
-                                        | corrupt!|
-                                        | corrupt!|
-                                        | corrupt!|
-                                        '---------'
-
-|  remove corrupted block from linked-list
-v
-
-        root dir
-        block 1   block 2
-      .---------.---------.
-      | rev: 1  | rev: 2  |--.
-      |         |         |-.|
-.-----|         |         |-|'
-|.----|         |         |-'
-||    '---------'---------'
-||       .--------'||||'-----------------------------------------.
-||       |         |||'--------------------------------.         |
-||       |         ||'--------------------.            |         |
-||       |         |'-----------.         |            |         |
-||       |         |            |         |            |         |
-||       v         v            v         v            v         v
-||    dir A                  dir B                  dir C
-||    block 3   block 4      block 5   block 9      block 7   block 8
-||  .---------.---------.  .---------.---------.  .---------.---------.
-|'->| rev: 1  | rev: 2  |->| rev: 1  | rev: 2  |->| rev: 1  | rev: 0  |
-'-->|         |         |->|         |         |->|         |         |
-    |         |         |  |         |         |  |         |         |
-    |         |         |  |         |         |  |         |         |
-    '---------'---------'  '---------'---------'  '---------'---------'
-```
-
-Also one question I've been getting is, what about the root directory?
-It can't move so wouldn't the filesystem die as soon as the root blocks
-develop errors? And you would be correct. So instead of storing the root
-in the first few blocks of the storage, the root is actually pointed to
-by the superblock. The superblock contains a few bits of static data, but
-outside of when the filesystem is formatted, it is only updated when the root
-develops errors and needs to be moved.
-
-## Wear leveling
-
-The second concern for the littlefs is that blocks in the filesystem may wear
-unevenly. In this situation, a filesystem may meet an early demise where
-there are no more non-corrupted blocks that aren't in use. It's common to
-have files that were written once and left unmodified, wasting the potential
-erase cycles of the blocks it sits on.
-
-Wear leveling is a term that describes distributing block writes evenly to
-avoid the early termination of a flash part. There are typically two levels
-of wear leveling:
-1. Dynamic wear leveling - Wear is distributed evenly across all **dynamic**
-   blocks. Usually this is accomplished by simply choosing the unused block
-   with the lowest amount of wear. Note this does not solve the problem of
-   static data.
-2. Static wear leveling - Wear is distributed evenly across all **dynamic**
-   and **static** blocks. Unmodified blocks may be evicted for new block
-   writes. This does handle the problem of static data but may lead to
-   wear amplification.
-
-In littlefs's case, it's possible to use the revision count on metadata pairs
-to approximate the wear of a metadata block. And combined with the COW nature
-of files, littlefs could provide your usual implementation of dynamic wear
-leveling.
-
-However, the littlefs does not. This is for a few reasons. Most notably, even
-if the littlefs did implement dynamic wear leveling, this would still not
-handle the case of write-once files, and near the end of the lifetime of a
-flash device, you would likely end up with uneven wear on the blocks anyways.
-
-As a flash device reaches the end of its life, the metadata blocks will
-naturally be the first to go since they are updated most often. In this
-situation, the littlefs is designed to simply move on to another set of
-metadata blocks. This travelling means that at the end of a flash device's
-life, the filesystem will have worn the device down nearly as evenly as the
-usual dynamic wear leveling could. More aggressive wear leveling would come
-with a code-size cost for marginal benefit.
-
-
-One important takeaway to note, if your storage stack uses highly sensitive
-storage such as NAND flash, static wear leveling is the only valid solution.
-In most cases you are going to be better off using a full [flash translation layer (FTL)](https://en.wikipedia.org/wiki/Flash_translation_layer).
-NAND flash already has many limitations that make it poorly suited for an
-embedded system: low erase cycles, very large blocks, errors that can develop
-even during reads, errors that can develop during writes of neighboring blocks.
-Managing sensitive storage such as NAND flash is out of scope for the littlefs.
-The littlefs does have some properties that may be beneficial on top of a FTL,
-such as limiting the number of writes where possible, but if you have the
-storage requirements that necessitate the need of NAND flash, you should have
-the RAM to match and just use an FTL or flash filesystem.
-
-## Summary
-
-So, to summarize:
-
-1. The littlefs is composed of directory blocks
-2. Each directory is a linked-list of metadata pairs
-3. These metadata pairs can be updated atomically by alternating which
-   metadata block is active
-4. Directory blocks contain either references to other directories or files
-5. Files are represented by copy-on-write CTZ skip-lists which support `O(1)`
-   append and `O(n log n)` reading
-6. Blocks are allocated by scanning the filesystem for used blocks in a
-   fixed-size lookahead region that is stored in a bit-vector
-7. To facilitate scanning the filesystem, all directories are part of a
-   linked-list that is threaded through the entire filesystem
-8. If a block develops an error, the littlefs allocates a new block, and
-   moves the data and references of the old block to the new.
-9. Any case where an atomic operation is not possible, mistakes are resolved
-   by a deorphan step that occurs on the first allocation after boot
-
-That's the little filesystem. Thanks for reading!
-
-**-- new below? (need more?) --**
-
 ## Conclusion
 
 And that's littlefs, thanks for reading!
 
 [wikipedia-flash]: https://en.wikipedia.org/wiki/Flash_memory
+[wikipedia-sna]: https://en.wikipedia.org/wiki/Serial_number_arithmetic
+[wikipedia-crc]: https://en.wikipedia.org/wiki/Cyclic_redundancy_check
+[wikipedia-cow]: https://en.wikipedia.org/wiki/Copy-on-write
 [wikipedia-B-tree]: https://en.wikipedia.org/wiki/B-tree
 [wikipedia-B+-tree]: https://en.wikipedia.org/wiki/B%2B_tree
+[wikipedia-skip-list]: https://en.wikipedia.org/wiki/Skip_list
 [wikipedia-ctz]: https://en.wikipedia.org/wiki/Count_trailing_zeros
 [wikipedia-ecc]: https://en.wikipedia.org/wiki/Error_correction_code
 [wikipedia-hamming-bound]: https://en.wikipedia.org/wiki/Hamming_bound
+[wikipedia-dynamic-wear-leveling]: https://en.wikipedia.org/wiki/Wear_leveling#Dynamic_wear_leveling
+[wikipedia-static-wear-leveling]: https://en.wikipedia.org/wiki/Wear_leveling#Static_wear_leveling
+[wikipedia-ftl]: https://en.wikipedia.org/wiki/Flash_translation_layer
 
 [oeis]: https://oeis.org
 [A001511]: https://oeis.org/A001511
@@ -3259,6 +2190,9 @@ And that's littlefs, thanks for reading!
 [btrfs]: https://btrfs.wiki.kernel.org/index.php/Btrfs_design
 [zfs]: https://en.wikipedia.org/wiki/ZFS
 
+[cow]: https://upload.wikimedia.org/wikipedia/commons/0/0c/Cow_female_black_white.jpg
+[elephant]: https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg
+[ram]: https://upload.wikimedia.org/wikipedia/commons/9/97/New_Mexico_Bighorn_Sheep.JPG
 
 [metadata-formula1]: https://latex.codecogs.com/svg.latex?cost%20%3D%20n%20&plus;%20n%20%5Cfrac%7Bs%7D%7Bd&plus;1%7D
 [metadata-formula2]: https://latex.codecogs.com/svg.latex?s%20%3D%20r%20%5Cfrac%7Bsize%7D%7Bn%7D
@@ -3283,15 +2217,5 @@ And that's littlefs, thanks for reading!
 [s]: https://latex.codecogs.com/svg.latex?s
 [w]: https://latex.codecogs.com/svg.latex?w
 [x]: https://latex.codecogs.com/svg.latex?x
-
-[ctz(x)]: https://latex.codecogs.com/svg.latex?%5Ctext%7Bctz%7D%28x%29
-[popcount(x)]: https://latex.codecogs.com/svg.latex?%5Ctext%7Bpopcount%7D%28x%29
-
-[O(nm)]: https://latex.codecogs.com/svg.latex?O%28nm%29
-[O(nm^2)]: https://latex.codecogs.com/svg.latex?O%28nm%5E%7B2%7D%29
-
-[cow]: https://upload.wikimedia.org/wikipedia/commons/0/0c/Cow_female_black_white.jpg
-[elephant]: https://upload.wikimedia.org/wikipedia/commons/3/37/African_Bush_Elephant.jpg
-[ram]: https://upload.wikimedia.org/wikipedia/commons/9/97/New_Mexico_Bighorn_Sheep.JPG
 
 [Error Characterization and Coding Schemes for Flash Memories]: http://cseweb.ucsd.edu/~swanson/papers/ACTEMT2010ECC.pdf
