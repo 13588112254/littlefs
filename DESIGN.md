@@ -1560,7 +1560,7 @@ error, which is technically true, there are no more good blocks, but as an
 added benefit also matches the error condition expected by users of dynamically
 sized data.
 
---- <!-- need this? -->
+---
 
 Read errors, on the other hand, are quite a bit more complicated. We don't have
 a copy of the data lingering around in RAM, so we need a way to reconstruct the
@@ -1589,7 +1589,7 @@ at the block device level to modestly extend the life of a device. littlefs
 respects any errors reported by the block device, allow a block device to
 provide additional aggressive error detection.
 
---- <!-- need this? -->
+---
 
 To avoid read errors, we need to be proactive, as apposed to reactive as we
 were with write errors.
@@ -1677,7 +1677,7 @@ random numbers when the filesystem is modified. This is exactly what we want
 for distributing wear in the allocator, but means this random number generator
 is not useful for general use.
 
---- <!-- need this? -->
+---
 
 Together, bad block detection and dynamic wear leveling provide a best effort
 solution for avoiding the early death of a filesystem due to wear. Importantly,
