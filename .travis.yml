@@ -145,9 +145,7 @@ jobs:
         - gcc --version
       before_script:
         # setup disk for littlefs-fuse
-        - rm -rf v1/littlefs/*
         - rm -rf v2/littlefs/*
-        - cp -r $(git ls-tree --name-only HEAD) v1/littlefs
         - cp -r $(git ls-tree --name-only HEAD) v2/littlefs
 
         - mkdir mount
@@ -155,6 +153,7 @@ jobs:
         - dd if=/dev/zero bs=512 count=4096 of=disk
         - losetup /dev/loop0 disk
       script:
+        # compile v1 and v2
         - make -C v1
         - make -C v2
 
