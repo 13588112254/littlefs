@@ -242,12 +242,12 @@ super secret computer science hack where you can pretend any algorithmic
 complexity is _O(1)_ by bounding the input.
 
 In the case of COW data structures, we can try twisting the definition a bit.
-Lets say that our COW structure doesn't copy after a single write, but instead
+Let's say that our COW structure doesn't copy after a single write, but instead
 copies after _n_ writes. This doesn't change most COW properties (assuming you
 can write atomically!), but what it does do is prevent the upward motion of
 wear. This sort of copy-on-bounded-writes (CObW) still focuses wear, but at
-each level we divide the propogation of wear by _n_. With a sufficiently
-large _n_ (&gt; branching factor) wear propogation is no longer a problem.
+each level we divide the propagation of wear by _n_. With a sufficiently
+large _n_ (&gt; branching factor) wear propagation is no longer a problem.
 
 See where this is going? Separate, logging and COW are imperfect solutions and
 have weaknesses that limit their usefulness. But if we merge the two they can
@@ -292,7 +292,7 @@ that can be evicted on demand.
 There are still some minor issues. Small logs can be expensive in terms of
 storage, in the worst case a small log costs 4x the size of the original data.
 CObW structures require an efficient block allocator since allocation occurs
-every _n_ writes. And there is still the challenge of keeping the RAM usuage
+every _n_ writes. And there is still the challenge of keeping the RAM usage
 constant.
 
 ## Metadata pairs
@@ -317,7 +317,7 @@ other operations.
 In order to determine which metadata block is the most recent, we store a
 revision count that we compare using [sequence arithmetic][wikipedia-sna]
 (very handy for avoiding problems with integer overflow). Conveniently, this
-revision count also gives us a rough idea of how many erases have occured on
+revision count also gives us a rough idea of how many erases have occurred on
 the block.
 
 ```
@@ -490,7 +490,7 @@ requires multiple stages.
    ```
 
 There is another complexity the crops up when dealing with small logs. The
-amortized runtime cost of garbage collection is not only dependendent on its
+amortized runtime cost of garbage collection is not only dependent on its
 one time cost (_O(n&sup2;)_ for littlefs), but also depends on how often
 garbage collection occurs.
 
@@ -578,7 +578,7 @@ operations.
 
 ---
 
-So, what can we do? First lets consider storing files in a simple COW
+So, what can we do? First let's consider storing files in a simple COW
 linked-list. Appending a block, which is the basis for writing files, means we
 have to update the last block to point to our new block. This requires a COW
 operation, which means we need to update the second-to-last block, and then the
@@ -978,7 +978,7 @@ In littlefs, it is fairly straightforward to detect bad blocks at write time.
 All writes must be sourced by some form of data in RAM, so immediately after we
 write to a block, we can read the data back and verify that it was written
 correctly. If we find that the data on disk does not match the copy we have in
-RAM, a write error has occured and we most likely have a bad block.
+RAM, a write error has occurred and we most likely have a bad block.
 
 Once we detect a bad block, we need to recover from it. In the case of write
 errors, we have a copy of the corrupted data in RAM, so all we need to do is
@@ -1185,7 +1185,7 @@ original data even after it has been corrupted. One such mechanism for this is
 [error-correction-codes (ECC)][wikipedia-ecc].
 
 ECC is an extension to the idea of a checksum. Where a checksum such as CRC can
-detect that an error has occured in the data, ECC can detect and actually
+detect that an error has occurred in the data, ECC can detect and actually
 correct some amount of errors. However, there is a limit to how many errors ECC
 can detect, call the [Hamming bound][wikipedia-hamming-bound]. As the number of
 errors approaches the Hamming bound, we may still be able to detect errors, but
@@ -1207,7 +1207,7 @@ provide additional aggressive error detection.
 
 ---
 
-To avoid read errors, we need to be proactive, as apposed to reactive as we
+To avoid read errors, we need to be proactive, as opposed to reactive as we
 were with write errors.
 
 One way to do this is to detect when the number of errors in a block exceeds
@@ -1259,7 +1259,7 @@ relatively unique situation in that it is sitting on top of a large of amount
 of entropy that persists across power loss.
 
 We can actually use the data on disk to directly drive our random number
-generator. In practice, this is implimented by xoring the checksums of each
+generator. In practice, this is implemented by xoring the checksums of each
 metadata pair, which is already calculated to fetch and mount the filesystem.
 
 ```
@@ -1822,7 +1822,7 @@ How do you atomically move a file between two directories?
 
 In littlefs we can atomically commit to directories, but we can't create
 an atomic commit that span multiple directories. The filesystem must go
-through a minimum of two distict states to complete a move.
+through a minimum of two distinct states to complete a move.
 
 To make matters worse, file moves are a common form of synchronization for
 filesystems. As a filesystem designed for power-loss, it's important we get
@@ -1835,9 +1835,9 @@ So what can we do?
   cases. We were only able to be lazy about the threaded linked-list because
   it isn't user facing and we can handle the corner cases internally.
 
-- Some filesystems propogate COW operations up the tree until finding a common
+- Some filesystems propagate COW operations up the tree until finding a common
   parent. Unfortunately this interacts poorly with our threaded tree and brings
-  back the issue of upward propogation of wear.
+  back the issue of upward propagation of wear.
 
 - In a previous version of littlefs we tried to solve this problem by going
   back and forth between the source and destination, marking and unmarking the

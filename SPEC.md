@@ -197,7 +197,7 @@ So in littlefs, 32-bit tags describe every type of metadata. And this means
 _every_ type of metadata, including file entries, directory fields, and
 global state. Even the CRCs used to mark the end of commits get their own tag.
 
-Because of this, the tag format contains some densely packed informtaion. Note
+Because of this, the tag format contains some densely packed information. Note
 that there are multiple levels of types which break down into more info:
 
 ```
@@ -400,7 +400,7 @@ Superblock fields:
 
 7. **Attr max (32-bits)** - Maximum size of file attributes in bytes.
 
-The superblock must always be the first entry (id 0) in a metdata pair as well
+The superblock must always be the first entry (id 0) in a metadata pair as well
 as be the first entry written to the block. This means that the superblock
 entry can be read from a device using offsets alone.
 
@@ -412,7 +412,7 @@ Associates the id with an on-disk data structure.
 The exact layout of the data depends on the data structure type stored in the
 chunk field and can be one of the following.
 
-Any type of struct supercedes all other structs associated with the id. For
+Any type of struct supersedes all other structs associated with the id. For
 example, appending a ctz-struct replaces an inline-struct on the same file.
 
 ---
@@ -462,7 +462,7 @@ Dir-struct fields:
 
 Gives the id an inline data structure.
 
-Inline structs store small files that can fit in the metdata pair. In this
+Inline structs store small files that can fit in the metadata pair. In this
 case, the file data is stored directly in the tag's data area.
 
 Layout of the inline-struct tag:
@@ -491,7 +491,7 @@ are stored in a skip-list in reverse, with a pointer to the head of the
 skip-list. Note that the head of the skip-list and the file size is enough
 information to read the file.
 
-How exactly CTZ skip-lists work is a bit complicted. A full explanation can be
+How exactly CTZ skip-lists work is a bit complicated. A full explanation can be
 found in the [DESIGN.md](DESIGN.md#ctz-skip-lists).
 
 A quick summary: For every _n_&zwj;th block where _n_ is divisible by
@@ -597,7 +597,7 @@ which indicates if the following metadata pair is a part of the directory
   '--------'  '--------'  '--------'
 ```
 
-Currently any type supercedes any other preceding tails in the metadata pair,
+Currently any type supersedes any other preceding tails in the metadata pair,
 but this may change if additional metadata pair state is added.
 
 A note about the metadata pair linked-list: Normally, this linked-list contains
