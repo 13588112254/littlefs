@@ -965,8 +965,8 @@ storage to prevent the filesystem from experiencing an early death due to
 wear on a single block in the storage.
 
 littlefs has two methods of protecting against wear:
-- detection and recovery from bad blocks
-- evenly distributing wear across dynamic blocks
+1. Detection and recovery from bad blocks
+2. Evenly distributing wear across dynamic blocks
 
 ---
 
