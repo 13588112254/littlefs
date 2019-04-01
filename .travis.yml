@@ -171,7 +171,7 @@ jobs:
 
         # attempt to migrate
         - cd ../..
-        - umount mount
+        - fusermount -u mount
 
         - v2/lfs --migrate /dev/loop0
         - v2/lfs /dev/loop0 mount
