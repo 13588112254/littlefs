@@ -575,9 +575,10 @@ updating an entry given how full the log is:
 
 ![cost = n + n (r (size/n) / ((1-r) (size/n) + 1))][metadata-formula4]
 
-Assuming 100 byte entries in a 1 MiB log, we can plot this:
+Assuming 100 byte entries in a 4 KiB log, we can graph this using the entry
+size to find a multiplicative cost:
 
-<!-- blablabla plot here -->
+![Metadata pair update cost graph][metadata-cost-graph]
 
 So at 50% usage, we're seeing an average of 2x cost per update, and at 75%
 usage, we're already at an average of 4x cost per update.
@@ -1242,8 +1243,6 @@ errors approaches the Hamming bound, we may still be able to detect errors, but
 can no longer fix the data. If we've reached this point the block is
 unrecoverable.
 
-<!-- pic here? -->
-
 littlefs by itself does **not** provide ECC. The block nature and relatively
 large footprint of ECC does not work well with the dynamically sized data of
 filesystems, correcting errors without RAM is complicated, and ECC fits better
@@ -1302,7 +1301,7 @@ Instead, we start the allocator as a random offset every time we mount the
 filesystem. As long as this random offset is uniform, the combined allocation
 pattern is also a uniform distribution.
 
-<!-- pic here? how depict uniform distribution? -->
+![Cumulative wear distribution graph][wear-distribution-graph]
 
 Initially, this approach to wear leveling looks like it creates a difficult
 dependency on a power-independent random number generator, which must return
@@ -1523,7 +1522,7 @@ Once the file exceeds 1/4 the block size, we switch to a CTZ skip-list. This
 means that our files never use more than 4x storage overhead, decreasing as
 the file grows in size.
 
-<!-- pic here? -->
+![File storage cost graph][file-cost-graph]
 
 ## Directories
 
@@ -2219,4 +2218,6 @@ And that's littlefs, thanks for reading!
 [w]: https://latex.codecogs.com/svg.latex?w
 [x]: https://latex.codecogs.com/svg.latex?x
 
-[Error Characterization and Coding Schemes for Flash Memories]: http://cseweb.ucsd.edu/~swanson/papers/ACTEMT2010ECC.pdf
+[metadata-cost-graph]: https://raw.githubusercontent.com/geky/littlefs/gh-images/metadata-cost.svg?sanitize=true
+[wear-distribution-graph]: https://raw.githubusercontent.com/geky/littlefs/gh-images/wear-distribution.svg?sanitize=true
+[file-cost-graph]: https://raw.githubusercontent.com/geky/littlefs/gh-images/file-cost.svg?sanitize=true
