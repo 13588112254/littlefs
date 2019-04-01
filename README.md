@@ -179,11 +179,11 @@ filesystem.
 More details on how littlefs works can be found in [DESIGN.md](DESIGN.md) and
 [SPEC.md](SPEC.md).
 
-[DESIGN.md](DESIGN.md) - A fully detailed dive into how littlefs works. I would
-suggest reading it as the tradeoffs at work are quite interesting.
+- [DESIGN.md](DESIGN.md) - A fully detailed dive into how littlefs works.
+  I would suggest reading it as the tradeoffs at work are quite interesting.
 
-[SPEC.md](SPEC.md) - The on-disk specification of littlefs with all the
-nitty-gritty details. May be useful for tooling development.
+- [SPEC.md](SPEC.md) - The on-disk specification of littlefs with all the
+  nitty-gritty details. May be useful for tooling development.
 
 ## Testing
 
@@ -210,29 +210,29 @@ License Identifiers that are here available: http://spdx.org/licenses/
 
 ## Related projects
 
-[littlefs-fuse] - A [FUSE] wrapper for littlefs. The project allows you to
-mount littlefs directly on a Linux machine. Can be useful for debugging
-littlefs if you have an SD card handy.
+- [littlefs-fuse] - A [FUSE] wrapper for littlefs. The project allows you to
+  mount littlefs directly on a Linux machine. Can be useful for debugging
+  littlefs if you have an SD card handy.
 
-[littlefs-js] - A javascript wrapper for littlefs. I'm not sure why you would
-want this, but it is handy for demos.  You can see it in action
-[here][littlefs-js-demo].
+- [littlefs-js] - A javascript wrapper for littlefs. I'm not sure why you would
+  want this, but it is handy for demos.  You can see it in action
+  [here][littlefs-js-demo].
 
-[mklfs] - A command line tool built by the [Lua RTOS] guys for making littlefs
-images from a host PC. Supports Windows, Mac OS, and Linux.
+- [mklfs] - A command line tool built by the [Lua RTOS] guys for making
+  littlefs images from a host PC. Supports Windows, Mac OS, and Linux.
 
-[Mbed OS] - The easiest way to get started with littlefs is to jump into Mbed
-which already has block device drivers for most forms of embedded storage.
-littlefs is available in Mbed OS as the [LittleFileSystem] class.
+- [Mbed OS] - The easiest way to get started with littlefs is to jump into Mbed
+  which already has block device drivers for most forms of embedded storage.
+  littlefs is available in Mbed OS as the [LittleFileSystem] class.
 
-[SPIFFS] - Another excellent embedded filesystem for NOR flash. As a more
-traditional logging filesystem with full static wear-leveling, SPIFFS will
-likely outperform littlefs on small memories such as the internal flash on
-microcontrollers.
+- [SPIFFS] - Another excellent embedded filesystem for NOR flash. As a more
+  traditional logging filesystem with full static wear-leveling, SPIFFS will
+  likely outperform littlefs on small memories such as the internal flash on
+  microcontrollers.
 
-[Dhara] - An interesting NAND flash translation layer designed for small MCUs.
-It offers static wear-leveling and power-resilience with only a fixed
-_O(|address|)_ pointer structure stored on each block and in RAM.
+- [Dhara] - An interesting NAND flash translation layer designed for small
+  MCUs. It offers static wear-leveling and power-resilience with only a fixed
+  _O(|address|)_ pointer structure stored on each block and in RAM.
 
 
 [BSD-3-Clause]: https://spdx.org/licenses/BSD-3-Clause.html
