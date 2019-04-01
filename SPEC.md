@@ -380,8 +380,8 @@ Layout of the superblock name tag and inline-struct tag:
 
 Superblock fields:
 
-1. **Magic string (8-bytes)** - Magic string indicating the presence of littlefs
-   on the device. Must be the string "littlefs".
+1. **Magic string (8-bytes)** - Magic string indicating the presence of
+   littlefs on the device. Must be the string "littlefs".
 
 2. **Version (32-bits)** - The version of littlefs at format time. The version
    is encoded in a 32-bit value with the upper 16-bits containing the major
@@ -494,9 +494,10 @@ information to read the file.
 How exactly CTZ skip-lists work is a bit complicted. A full explanation can be
 found in the [DESIGN.md](DESIGN.md#ctz-skip-lists).
 
-A quick summary: For every nth block where n is divisible by 2^x, the block
-contains a pointer to block n-2^x. These pointers are stored in increasing
-order of x in each block of the file before the actual data.
+A quick summary: For every _n_&zwj;th block where _n_ is divisible by
+2&zwj;_&#739;_, that block contains a pointer to block _n_-2&zwj;_&#739;_.
+These pointers are stored in increasing order of _x_ in each block of the file
+before the actual data.
 
 ```
                                                                |
@@ -726,8 +727,8 @@ Layout of the move state:
 
 Move state fields:
 
-1. **Sync bit (1-bit)** - Indicates if the metadata pair threaded linked-list is
-   in-sync. If set, the threaded linked-list should be checked for errors.
+1. **Sync bit (1-bit)** - Indicates if the metadata pair threaded linked-list
+   is in-sync. If set, the threaded linked-list should be checked for errors.
 
 2. **Move type (11-bits)** - Type of move being performed. Must be either
    `0x000`, indicating no move, or `0x4ff` indicating the source file should
@@ -777,10 +778,10 @@ CRC fields:
 1. **Valid state (1-bit)** - Indicates the expected value of the valid bit for
    any tags in the next commit.
 
-2. **CRC (32-bits)** - CRC-32 with a polynomial of `0x04c11db7` initialized with
-   `0xffffffff`.
+2. **CRC (32-bits)** - CRC-32 with a polynomial of `0x04c11db7` initialized
+   with `0xffffffff`.
 
-3. **Padding** - Padding to the next program-aligned boundary. No guarantees are
-   made about the contents.
+3. **Padding** - Padding to the next program-aligned boundary. No guarantees
+   are made about the contents.
 
 ---
