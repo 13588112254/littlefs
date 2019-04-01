@@ -964,8 +964,9 @@ Wear leveling is the process of distributing wear across all blocks in the
 storage to prevent the filesystem from experiencing an early death due to
 wear on a single block in the storage.
 
-littlefs has two methods of protecting against wear: detection and recovery
-from bad blocks and evenly distributing wear across dynamic blocks.
+littlefs has two methods of protecting against wear:
+- detection and recovery from bad blocks
+- evenly distributing wear across dynamic blocks
 
 ---
 
