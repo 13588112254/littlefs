@@ -16,7 +16,9 @@ in the context of microcontrollers. The question was: How would you build a
 filesystem that is resilient to power-loss and flash wear without using
 unbounded memory?
 
-<!-- TODO add note on how this is design and where to go for spec? -->
+This document covers the high-level design of littlefs, how it is different
+than other filesystems, and the design decisions that got us here. For the
+low-level details covering every bit on disk, check out [SPEC.md](SPEC.md).
 
 ## The problem
 
@@ -292,60 +294,6 @@ storage, in the worst case a small log costs 4x the size of the original data.
 CObW structures require an efficient block allocator since allocation occurs
 every _n_ writes. And there is still the challenge of keeping the RAM usuage
 constant.
-
-
-**- TODO move this to readme? -**
-## High level
-
-At a high level, littlefs is a block based filesystem that uses small logs to
-store metadata and larger copy-on-write (COW) structures to store file data.
-
-In littlefs, these ingredients form a sort of two-layered cake, with the small
-logs (called metadata pairs) providing fast updates to metadata anywhere on
-storage, while the COW structures store file data compactly and without any
-wear amplification cost.
-
-Both of these data structures are built out of blocks, which are fed by a
-common block allocator. By limiting the number of erases allowed on a block
-per allocation, the allocator provides dynamic wear leveling over the entire
-filesystem.
-
-```
-                    root
-                   .--------.--------.
-                   | A'| B'|         |
-                   |   |   |->       |
-                   |   |   |         |
-                   '--------'--------'
-                .----'   '--------------.
-       A       v                 B       v
-      .--------.--------.       .--------.--------.
-      | C'| D'|         |       | E'|new|         |
-      |   |   |->       |       |   | E'|->       |
-      |   |   |         |       |   |   |         |
-      '--------'--------'       '--------'--------'
-      .-'   '--.                  |   '------------------.
-     v          v              .-'                        v
-.--------.  .--------.        v                       .--------.
-|   C    |  |   D    |   .--------.       write       | new E  |
-|        |  |        |   |   E    |        ==>        |        |
-|        |  |        |   |        |                   |        |
-'--------'  '--------'   |        |                   '--------'
-                         '--------'                   .-'    |
-                         .-'    '-.    .-------------|------'
-                        v          v  v              v
-                   .--------.  .--------.       .--------.
-                   |   F    |  |   G    |       | new F  |
-                   |        |  |        |       |        |
-                   |        |  |        |       |        |
-                   '--------'  '--------'       '--------'
-```
-
-The key to making littlefs efficient is the implementation of these components.
-**- TODO move this to readme? -**
-
-
-**-- new below? --**
 
 ## Metadata pairs
 
@@ -2161,6 +2109,7 @@ small improvements.
 ## Conclusion
 
 And that's littlefs, thanks for reading!
+
 
 [wikipedia-flash]: https://en.wikipedia.org/wiki/Flash_memory
 [wikipedia-sna]: https://en.wikipedia.org/wiki/Serial_number_arithmetic
