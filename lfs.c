@@ -4368,6 +4368,9 @@ int lfs_migrate(lfs_t *lfs, const struct lfs_config *cfg) {
 
             // Copy over first block to thread into fs. Unfortunately
             // if this fails there is not much we can do.
+            LFS_DEBUG("Migrating %"PRIu32" %"PRIu32" -> %"PRIu32" %"PRIu32,
+                    lfs->root[0], lfs->root[1], dir1.pair[0], dir1.pair[1]);
+
             err = lfs_bd_erase(lfs, dir1.pair[1]);
             if (err) {
                 goto cleanup;
